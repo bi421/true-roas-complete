@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
+app.include_router(csv_export_router)
 @app.get("/api/v1/status")
 def status():
     return {
