@@ -2,38 +2,36 @@
 import duckdb, random
 from datetime import datetime, timedelta
 import os
+from src.trueroas.core.config import settings
 
-DB_PATH = "data/warehouse.duckdb"
-
-def sync_meta():
-    """DEMO: generates realistic Meta spend if no token"""
-    token = os.getenv("META_ACCESS_TOKEN")
-    account = os.getenv("META_AD_ACCOUNT_ID", "act_demo_123")
+def sync_meta(db_path: str):
+    """DEMO: generates realistic Meta spend if no token."""
+    token = settings.META_ACCESS_TOKEN
+    account = settings.META_AD_ACCOUNT_ID
     
-    con = duckdb.connect(DB_PATH)
-    
-    # Demo mode - generate 14 days
-    if not token:
-        for i in range(14):
-            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-            spend = random.uniform(180, 650)  # realistic daily spend
-            meta_roas = random.uniform(3.8, 4.6)  # Meta overstates
+    # Use context manager for DuckDB connections to ensure integrity.
+    with duckdb.connect(db_path) as con:
+        # Demo mode - generate 14 days.
+        if not token:
+            for i in range(14):
+                date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+                spend = random.uniform(180, 650)  # Realistic daily spend.
+                meta_roas = random.uniform(3.8, 4.6)  # Meta overstates.
+                
+                con.execute("""
+                    DELETE FROM historical_metrics WHERE account_id=? AND clean_date=? AND order_id LIKE 'meta_%'
+                """, [account, date])
+                
+                con.execute("""
+                    INSERT INTO historical_metrics 
+                    (account_id, order_id, clean_date, normalized_spend, meta_roas)
+                    VALUES (?,?,?,?,?)
+                """, [account, f"meta_{date}", date, spend, meta_roas])
             
-            con.execute("""
-                DELETE FROM historical_metrics WHERE account_id=? AND clean_date=? AND order_id LIKE 'meta_%'
-            """, [account, date])
-            
-            con.execute("""
-                INSERT INTO historical_metrics 
-                (account_id, order_id, clean_date, normalized_spend, meta_roas)
-                VALUES (?,?,?,?,?)
-            """, [account, f"meta_{date}", date, spend, meta_roas])
-        con.close()
-        return {"mode": "DEMO", "days": 14, "total_spend": 5200}
-    
-    # Real mode would go here
-    con.close()
-    return {"mode": "REAL", "days": 0}
+            return {"mode": "DEMO", "days": 14, "total_spend": 5200}
+        
+        # Real mode implementation goes here.
+        return {"mode": "REAL", "days": 0}
 import hashlib
 import time
 import httpx
@@ -47,20 +45,21 @@ class MetaCAPI:
     """
 
     def __init__(self):
-        self.access_token = os.getenv("META_ACCESS_TOKEN")
-        self.pixel_id = os.getenv("META_PIXEL_ID")
-        self.api_version = "v21.0"
+        self.access_token = settings.META_ACCESS_TOKEN
+        self.pixel_id = settings.META_PIXEL_ID
+        self.api_version = settings.META_API_VERSION
 
     def _hash_pii(self, data: str) -> str:
-        """SHA256 hash for Meta PII"""
-        return hashlib.sha256(data.strip().lower().encode()).hexdigest()
+        """SHA256 hash for Meta PII with application salt."""
+        salted_data = f"{settings.APP_SECRET_SALT}:{data.strip().lower()}"
+        return hashlib.sha256(salted_data.encode()).hexdigest()
 
     def _generate_event_id(self, order_id: str, email: str) -> str:
         """
         Deterministic event_id: Same order = Same ID = No duplicates
         This is what gets EMQ 8.7/10
         """
-        base = f"{order_id}:{email.lower()}"
+        base = f"{settings.APP_SECRET_SALT}:{order_id}:{email.lower()}"
         return hashlib.blake2b(base.encode(), digest_size=16).hexdigest()
 
     async def send_purchase(
@@ -76,7 +75,7 @@ class MetaCAPI:
         fbp: Optional[str] = None,
         fbc: Optional[str] = None
     ) -> dict:
-        """Send Purchase to Meta CAPI with deduplication"""
+        """Send Purchase to Meta CAPI with deduplication."""
 
         if not self.access_token or not self.pixel_id:
             print("CAPI: Missing META_ACCESS_TOKEN or META_PIXEL_ID")
@@ -97,7 +96,7 @@ class MetaCAPI:
             "data": [{
                 "event_name": "Purchase",
                 "event_time": event_time,
-                "event_id": event_id, # CRITICAL
+                "event_id": event_id,  # CRITICAL.
                 "action_source": "website",
                 "user_data": user_data,
                 "custom_data": {

@@ -1,206 +1,90 @@
-# \# TrueROAS v1.0 Production 🛡️
+# TrueROAS v1.0 Production 🛡️
 
-# 
+TrueROAS is an enterprise-grade precision marketing analytics engine. It reconciles Meta Ads telemetry with actual Shopify financial settlements, identifying the gap between platform reporting and business reality.
 
-# TrueROAS is an enterprise-grade precision marketing analytics engine. 
+> "Meta says 4.2x. Shopify says 2.69x. TrueROAS tells you why."
 
-# It reconciles Meta Ads telemetry with actual Shopify financial settlements, 
+## 🚀 Overview
 
-# identifying the gap between platform reporting and business reality.
+TrueROAS provides a single source of truth for e-commerce performance. It transitions from `DEMO_MODE` to `LIVE` by integrating directly with Meta Graph API and Shopify Admin API. The system utilizes a multi-tenant DuckDB OLAP warehouse for high-performance reconciliation and audit scoring.
 
-# 
+## 🛠 Features
 
-# > \*"Meta says 4.2x. Shopify says 2.69x. TrueROAS tells you why."\*
+- **Multi-Tenant Architecture**: Isolated DuckDB databases per tenant with automated schema migrations.
+- **Financial Circuit Breaker**: Automated ad spend protection based on daily caps and variance thresholds.
+- **Data Privacy**: Salted PII hashing (BLAKE2b/SHA256) ensures customer data is never stored in raw form.
+- **Telegram Guardian Bot**: Real-time monitoring and status alerts.
+- **Truth Reconciliation**: Accurate ROAS calculation by comparing Meta spend vs. Shopify settled revenue.
+- **Automated Maintenance**: Daily background tasks for log rotation and archive purging.
 
-# 
+## 📦 Project Structure
 
-# \## 🚀 Overview
+```mermaid
+graph LR
+    Project[true-roas-complete]
+    Project --> Src[src/trueroas]
+    Project --> Data[data/tenants]
+    Project --> Logs[data/logs]
 
-# 
+    Src --> Core[core: Config, Migrations, Breaker]
+    Src --> Workers[workers: Meta/Shopify Sync, CSV Export]
 
-# TrueROAS transitions from `DEMO\_MODE` to `LIVE` by integrating directly 
+    Project --> Bot[bot.py]
+    Project --> Main[main.py]
+```
 
-# with Meta Graph API v21.0 and Shopify Admin API 2024-01. It employs a 
+## ⚡️ Quick Start
 
-# 7-stage Polars pipeline and DuckDB OLAP warehouse for sub-second 
+### 1. Configure Environment
+Create a `.env` file in the root directory based on the configuration defined in `src/trueroas/core/config.py`.
 
-# reconciliation and audit scoring.
+```env
+APP_SECRET_SALT="your-secure-salt-here"
+DAILY_SPEND_CAP=500.0
+BREAKER_THRESHOLD_MULTIPLIER=2.0
+TELEGRAM_BOT_TOKEN="your_bot_token"
+META_ACCESS_TOKEN="your_token"
+SHOPIFY_TOKEN="your_token"
+```
 
-# Compatible with Meta Advantage+, Crush AI, Motion, and all 3rd-party media buyers.
+### 2. Start API Server
+The server initializes migrations automatically for each tenant on access.
+```bash
+python main.py
+```
 
-# 
+### 3. Deploy Guardian Bot
+```bash
+python bot.py
+```
 
-# \## 🛠 Features
+##  API Reference
 
-# 
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/` | `GET` | TrueROAS Guardrail Dashboard (HTML) |
+| `/api/v1/status` | `GET` | Current 7-day ROAS and spend metrics |
+| `/api/v1/sync` | `POST` | Trigger Meta and Shopify data ingestion |
+| `/api/v1/guardrail/check` | `POST` | Manually trigger spend cap validation |
+| `/api/v1/admin/global-stats` | `GET` | Aggregated metrics across all tenants (Admin) |
+| `/api/v1/export/meta-capi-csv`| `GET` | Download the "Truth File" for manual Meta CAPI upload |
 
-# \- \*\*Live Data Connectors\*\*: Async connectors for Meta + Shopify with rate-limiting and cursor-based pagination.
+## 🛡 Security & Compliance
 
-# \- \*\*7-Stage Refinement Pipeline\*\*: Bot removal, deduplication, attribution normalization, incrementality calculation.
+TrueROAS is built with security as a priority:
+- **Zero Raw PII Persistence**: Emails are hashed using a unique application salt + BLAKE2b/SHA256 before any persistence or transmission.
+- **Path Traversal Protection**: Tenant IDs are sanitized to prevent unauthorized file system access.
+- **Atomic Migrations**: Database updates are wrapped in transactions with automatic rollback on failure.
 
-# \- \*\*Truth Reconciliation\*\*: True ROAS using 7d\_click, 1d\_click, 1d\_view per Meta 2026.03 policy vs Shopify settled revenue.
+## 🧪 Marketing ROAS vs Financial ROAS
 
-# \- \*\*Andromeda ML Engine\*\*: Prophet-based organic baseline modeling.
+Standard ad platforms often overstate ROAS due to attribution windows and view-through conversions. TrueROAS measures Meta-specific settled cash in 7-day windows to provide the actual financial return.
 
-# \- \*\*Financial Circuit Breaker\*\*: Auto-halt if variance > 10% for 2 weeks.
+### Manual Meta CAPI Upload
+1. Download the "Truth File" ZIP from the dashboard or API.
+2. Navigate to Meta Events Manager → Data Sources → [Your Pixel].
+3. Select "Upload Events" and upload the provided CSV.
+4. Meta auto-deduplicates using the deterministic `event_id` to correct Ads Manager reporting.
 
-# \- \*\*Telegram Guardian Bot\*\*: Real-time alerts + approval gates.
-
-# \- \*\*Privacy First\*\*: BLAKE2b salted PII hashing before any persistence.
-
-# 
-
-# \## 📦 Project Structure
-
-# 
-
-# ```mermaid
-
-# graph LR
-
-# &#x20;   Project\[true-roas-shopify]
-
-# &#x20;   Project --> Src\[src/trueroas]
-
-# &#x20;   Project --> Data\[data: DuckDB Storage]
-
-# &#x20;   Project --> Files\[Root Scripts]
-
-# 
-
-# &#x20;   Src --> API\[api: FastAPI \& Routes]
-
-# &#x20;   Src --> Core\[core: Reconciliation \& ML]
-
-# &#x20;   Src --> Ingest\[ingestion: API Connectors]
-
-# &#x20;   Src --> Pipe\[pipeline: Polars Pipeline]
-
-# &#x20;   Src --> Wh\[warehouse: DuckDB Schema]
-
-# &#x20;   Src --> Math\[math: Core Metrics]
-
-# 
-
-# &#x20;   Files --> Setup\[setup\_v1.py]
-
-# &#x20;   Files --> Bot\[bot.py]
-
-# &#x20;   Files --> Main\[main.py]
-
-# ```
-
-# 
-
-# \## ⚡️ Quick Start
-
-# 
-
-# \### 1. Configure Environment
-
-# 
-
-# \*\*Windows:\*\*
-
-# ```cmd
-
-# copy .env.example .env
-
-# ```
-
-# Fill in your `META\_ACCESS\_TOKEN`, `META\_AD\_ACCOUNT\_ID`, `SHOPIFY\_STORE\_URL`, `SHOPIFY\_ACCESS\_TOKEN`, and Telegram credentials.
-
-# 
-
-# \### 2. Initialize Warehouse
-
-# Run the setup script to initialize directories, validate credentials, and apply database migrations:
-
-# ```bash
-
-# python setup\_v1.py
-
-# ```
-
-# 
-
-# \### 3. Start API Server
-
-# Run the production server using Uvicorn:
-
-# ```bash
-
-# uvicorn main:app --host 0.0.0.0 --port 8000
-
-# ```
-
-# 
-
-# \### 4. Deploy Guardian Bot
-
-# ```bash
-
-# python bot.py
-
-\### 5. Export for Meta CAPI (Manual Mode)
-
-If you prefer not to give API access, use Manual Mode:
-
-
-
-1\. Visit `http://localhost:8000/api/v1/export/meta-capi-csv` to download CSV
-
-2\. Go to Meta Events Manager → Data Sources → Your Pixel → Settings
-
-3\. Click "Upload Offline Events" → Upload the CSV
-
-4\. Meta will auto-deduplicate using `event\_id` for EMQ >8.0
-
-
-
-\*\*Why Manual?\*\* You keep full control of PII. TrueROAS never sees customer emails. Zero GDPR risk.
-
-# ```
-
-# 
-
-# \## 📊 Monitoring \& API
-
-# 
-
-# \- \*\*Dashboard\*\*: Visit `http://localhost:8000/` for the real-time Truth dashboard.
-
-# \- \*\*API Docs\*\*: Swagger UI is available at `http://localhost:8000/docs`.
-
-# \- \*\*Health Check\*\*: Access `GET /health` to verify system status.
-
-# \- \*\*Sync Trigger\*\*: POST to `/api/v1/sync` to force a data refresh.
-
-# 
-
-# \## 🛡 Security \& Compliance
-
-# 
-
-# TrueROAS is built with security as a priority:
-
-# \- \*\*Zero Raw PII Persistence\*\*: Emails and phones are hashed using salt + BLAKE2b before ingestion.
-
-# \- \*\*Audit Logging\*\*: Every autonomous action is recorded in an immutable ledger.
-
-# \- \*\*Circuit Breaker\*\*: Automation is gated by financial variance thresholds (default 10%).
-
-# \- ## Marketing ROAS vs Financial ROAS
-
-# Tools like Wetracked measure total marketing impact across 28-day windows.
-
-# TrueROAS measures Meta-specific settled cash in 7-day windows for CFO reporting.
-
-# Use both for full picture.
-
-# 
-
-# \---
-
-# \*TrueROAS: Precision over vanity.\*
-
+---
+*TrueROAS: Precision over vanity.*

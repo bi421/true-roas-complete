@@ -1,6 +1,18 @@
-venv/
-data/
-.env
+# Byte-compiled / optimized / DLL files
 __pycache__/
-.pytest_cache/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Databases and Local Data
+data/
+*.duckdb
+
+# Logs
+logs/
+*.log

@@ -1,12 +1,16 @@
 import hashlib
 import csv
 import io
+import os
 from datetime import datetime
+from src.trueroas.core.config import settings
 from typing import List, Dict
 
 def generate_event_id(order_id: str, email: str) -> str:
-    """Deterministic event_id for Meta deduplication"""
-    base = f"{order_id}:{email.lower().strip()}"
+    """Deterministic event_id for Meta deduplication using application salt."""
+    clean_email = (email or "anonymous").lower().strip()
+    # Using salt ensures that even with the same email, hashes are unique to this app instance.
+    base = f"{settings.APP_SECRET_SALT}:{order_id}:{clean_email}"
     return hashlib.blake2b(base.encode(), digest_size=16).hexdigest()
 
 def generate_meta_capi_csv(shopify_orders: List[Dict]) -> str:
@@ -19,7 +23,7 @@ def generate_meta_capi_csv(shopify_orders: List[Dict]) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Meta Offline Events headers
+    # Meta Offline Events headers.
     writer.writerow([
         "event_name",
         "event_time",
@@ -36,7 +40,7 @@ def generate_meta_capi_csv(shopify_orders: List[Dict]) -> str:
         writer.writerow([
             "Purchase",
             event_time,
-            event_id, # CRITICAL FOR DEDUP
+            event_id,  # CRITICAL FOR DEDUP.
             order["total_price"],
             order["currency"],
             order["id"]
@@ -52,13 +56,13 @@ router = APIRouter()
 
 @router.get("/api/v1/export/meta-capi-csv")
 async def export_meta_csv():
-    # 1. Shopify-аас сүүлийн 7 хоногийн order татах
-    orders = await get_shopify_orders(days=7) # Чиний функц
+    # 1. Fetch Shopify orders from the last 7 days.
+    orders = await get_shopify_orders(days=settings.EXPORT_DAYS_LOOKBACK)  # Local helper function.
 
-    # 2. CSV үүсгэх
+    # 2. Generate CSV.
     csv_data = generate_meta_capi_csv(orders)
 
-    # 3. Download болгож өгөх
+    # 3. Provide as download.
     return StreamingResponse(
         io.StringIO(csv_data),
         media_type="text/csv",
