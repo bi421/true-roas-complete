@@ -16,3 +16,5 @@ data/
 # Logs
 logs/
 *.log
+# Local utilities
+ngrok
