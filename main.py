@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from src.trueroas.core.breaker import check_and_pause
 from src.trueroas.workers.meta_sync import sync_meta
 from src.trueroas.workers.shopify_sync import sync_shopify
+from src.trueroas.workers.csv_export import router as csv_router, generate_event_id
 from src.trueroas.core.migrations import apply_migrations, cleanup_old_logs
 from contextlib import asynccontextmanager
 from src.trueroas.core.config import settings
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(csv_router)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_db_path(tenant_id: str = "default") -> str:
@@ -45,12 +47,6 @@ def get_db_path(tenant_id: str = "default") -> str:
     # Ensure schema is applied before returning database path.
     apply_migrations(db_path)
     return db_path
-
-def generate_event_id(order_id: str, email: str | None) -> str:
-    # Handle potential null emails.
-    clean_email = (email or "anonymous").lower().strip()
-    base = f"{settings.APP_SECRET_SALT}:{order_id}:{clean_email}"
-    return hashlib.blake2b(base.encode(), digest_size=16).hexdigest()
 
 @app.get("/api/v1/status")
 def status(x_tenant_id: str = Header("default")):
@@ -87,6 +83,9 @@ def status(x_tenant_id: str = Header("default")):
         except:
             return {"status": "DEMO_MODE", "spend": 2802.29, "true_roas": 2.69, "meta_roas": 4.2, "overstatement_pct": 55.7}
 
+@app.get("/health")
+def health():
+    return {"status": "online", "engine": "TrueROAS Core V1"}
 @app.post("/api/v1/guardrail/check")
 def check(x_tenant_id: str = Header("default")):
     db_path = get_db_path(x_tenant_id)

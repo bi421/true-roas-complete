@@ -13,6 +13,26 @@ def generate_event_id(order_id: str, email: str) -> str:
     base = f"{settings.APP_SECRET_SALT}:{order_id}:{clean_email}"
     return hashlib.blake2b(base.encode(), digest_size=16).hexdigest()
 
+async def get_shopify_orders(days: int) -> List[Dict]:
+    """Fetch recent orders from Shopify (Mock implementation)."""
+    # In production, this would use httpx to call the Shopify Admin API.
+    return [
+        {
+            "id": "1001",
+            "email": "test1@example.com",
+            "total_price": "99.99",
+            "currency": "USD",
+            "created_at": (datetime.now()).isoformat()
+        },
+        {
+            "id": "1002",
+            "email": "test2@example.com",
+            "total_price": "149.50",
+            "currency": "USD",
+            "created_at": (datetime.now()).isoformat()
+        }
+    ]
+
 def generate_meta_capi_csv(shopify_orders: List[Dict]) -> str:
     """
     Generate CSV for Meta Offline Conversions upload.
