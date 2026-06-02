@@ -80,6 +80,39 @@ MIGRATIONS = [
         action_type VARCHAR,
         details VARCHAR
     );
+    """,
+    # Version 3: Statistical indicators for Decision Intelligence.
+    """
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS order_count INTEGER DEFAULT 0;
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS revenue_variance DOUBLE DEFAULT 0;
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS confidence_score DOUBLE DEFAULT 0;
+    """,
+    # Version 4: Performance metrics for constraint detection.
+    """
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS ctr DOUBLE DEFAULT 0.015;
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS conversion_rate DOUBLE DEFAULT 0.025;
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS frequency DOUBLE DEFAULT 1.0;
+    """,
+    # Version 5: Decision Accountability Tracking.
+    """
+    CREATE TABLE IF NOT EXISTS decision_audit_trail (
+        decision_id VARCHAR PRIMARY KEY,
+        account_id VARCHAR,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        recommendation_type VARCHAR,
+        predicted_ev DOUBLE,
+        predicted_confidence DOUBLE,
+        assumptions_json JSON,
+        outcome_7d DOUBLE DEFAULT NULL,
+        outcome_30d DOUBLE DEFAULT NULL,
+        outcome_90d DOUBLE DEFAULT NULL,
+        actual_outcome DOUBLE DEFAULT NULL,
+        is_successful BOOLEAN DEFAULT NULL,
+        reconciled_at TIMESTAMP DEFAULT NULL,
+        reconciled_7d_at TIMESTAMP DEFAULT NULL,
+        reconciled_30d_at TIMESTAMP DEFAULT NULL,
+        reconciled_90d_at TIMESTAMP DEFAULT NULL
+    );
     """
 ]
 
@@ -123,6 +156,9 @@ def apply_migrations(db_path: str):
     """Upgrade tenant database to the latest schema version."""
     tenant_id = os.path.basename(os.path.dirname(db_path))
     with duckdb.connect(db_path) as con:
+        # Ensure base directories exist for standard SQLite/DuckDB error prevention on Windows
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
         # Create migration history table.
         con.execute("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
         
@@ -147,3 +183,12 @@ def apply_migrations(db_path: str):
                     logger.error(f"FATAL: Migration v{version_number} failed for tenant: {tenant_id}. Error: {e}")
                     # Halt migrations if one fails.
                     break
+
+def run_migrations():
+    """CLI Entry point to initialize the default tenant database."""
+    # This replicates the logic found in main.get_db_path for the default user.
+    tenant_dir = os.path.join(BASE_DIR, "data", "tenants", "default")
+    os.makedirs(tenant_dir, exist_ok=True)
+    db_path = os.path.join(tenant_dir, "warehouse.duckdb")
+    apply_migrations(db_path)
+    print(f"SUCCESS: Tenant 'default' initialized at {db_path}")

@@ -10,16 +10,16 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         async with httpx.AsyncClient() as client:
             r = (await client.get(settings.TRUEROAS_API_URL, timeout=5)).json()
         
-        msg = f"""🛡️ TrueROAS Status
+        msg = f"""TrueROAS Status
 
-💰 Spend (7d): ${r['spend']}
-📈 True ROAS: {r['true_roas']}x
-🤥 Meta ROAS: {r['meta_roas']}x
-⚠️ Overstatement: {r['overstatement_pct']}%
+Spend (7d): ${r['spend']}
+True ROAS: {r['true_roas']}x
+Meta ROAS: {r['meta_roas']}x
+Overstatement: {r['overstatement_pct']}%
 
-Mode: {r['status']}"""
-    except:
-        msg = "API is unreachable. Please run python main.py"
+Status: {r.get('status', 'UNKNOWN')}"""
+    except Exception as e:
+        msg = f"ALERT: API Unreachable or Error.\nDetail: {str(e)}"
     await update.message.reply_text(msg)
 
 if settings.TELEGRAM_BOT_TOKEN == "DEMO":

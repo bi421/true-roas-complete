@@ -1,263 +1,114 @@
-# TrueROAS v1.0
+# 🛡️ TrueROAS: Bayesian Marketing Audit & Intelligence Engine
 
-## Marketing Reconciliation & Decision Intelligence Platform
-
-TrueROAS helps e-commerce businesses reconcile platform-reported marketing performance with business outcomes, enabling more informed and defensible budget decisions.
+### "Decisions over Dashboards."
+**TrueROAS** is a high-precision **Audit Service System** designed to reconcile "overstated" ROAS reported by platforms (Meta, Google) with real-world financial outcomes (Shopify/Bank Data). It uses Bayesian statistics to diagnose the true return on marketing spend and identify capital efficiency bottlenecks.
 
 > Platform metrics tell you what was reported.
->
-> TrueROAS helps you understand what happened, what might explain it, and what to investigate next.
+> TrueROAS provides an independent reconciliation layer between marketing platforms and your bank account.
+> **"Platforms can lie, but bank accounts never do."**
 
 ---
 
-# Why TrueROAS?
+**Built for:** E-commerce founders, performance marketers, and CFOs who need verified ROI before scaling.
 
-Marketing platforms, analytics tools, and financial systems often tell different stories.
+## 🚀 Business Outcomes
+TrueROAS answers three business-critical questions:
 
-A campaign may appear highly profitable in an advertising platform while financial outcomes suggest a different picture.
+1.  **Am I actually making money after advertising costs?**
+    *   Independently reconcile Meta Ads performance against verified Shopify outcomes.
+2.  **How much is the platform overstating my ROAS?**
+    *   Identify the "Attribution Variance" to avoid scaling based on double-counted or inflated metrics.
+3.  **What should I do next?**
+    *   Get context-aware advice based on business constraints like Creative fatigue or Offer friction.
 
-TrueROAS provides an independent reconciliation layer between:
-
-* Meta Ads performance data
-* Shopify business data
-* Financial outcomes
-* Operational signals
-
-The goal is not to determine which platform is "right."
-
-The goal is to help business owners make better decisions under uncertainty.
-
----
-
-# Core Principles
-
-### Evidence Before Conclusions
-
-TrueROAS separates:
-
-* Observations
-* Findings
-* Hypotheses
-* Risks
-* Recommendations
-
-This reduces premature conclusions and encourages evidence-based decision making.
-
-### Financial Reconciliation
-
-Platform-reported results are compared against available business data to identify significant variances that may warrant investigation.
-
-### Confidence-Based Recommendations
-
-Recommendations are generated with explicit confidence levels and assumptions.
-
-The system recognizes uncertainty rather than hiding it.
-
-### Decision Intelligence
-
-TrueROAS is designed to answer:
-
-* What changed?
-* Why might it have changed?
-* How confident are we?
-* What should we investigate next?
-* What action is reasonable?
+## 🔬 Deterministic Science over "AI Magic"
+TrueROAS prioritizes deterministic statistical inference over black-box generative AI. Every recommendation is traceable to evidence, assumptions, and mathematical proofs using:
+- **Bayesian Inference:** Normal-Normal conjugate priors to reconcile platform bias with financial reality.
+- **SciPy Statistical Core:** Exact PDF/CDF probability modeling using the Normal Survival Function.
+- **Pessimistic Bound (P10):** Risk management based on worst-case scenarios rather than just averages.
 
 ---
 
-# Business Problems Addressed
-
-### Attribution Uncertainty
-
-Different platforms often claim credit for the same conversion.
-
-### Reporting Variance
-
-Marketing reports and business outcomes may not align.
-
-### Budget Allocation Risk
-
-Scaling decisions based solely on platform metrics can increase risk.
-
-### Operational Blind Spots
-
-Returns, refunds, tracking issues, and attribution settings can affect reported performance.
+## 🚀 Key Value Propositions
+*   **Bayesian Reconciliation:** Merges Meta ROAS with verified revenue to produce a "True Posterior ROAS."
+*   **Waste Audit:** Quantifies monthly "inefficient spend" caused by inflated platform reporting.
+*   **Safety Margin (P10):** Diagnoses the "Safety Zone" to ensure capital is protected even in high-volatility scenarios.
+*   **Decision Accountability:** Tracks historical advice against actual outcomes to maintain a system "Accuracy Score."
+*   **Audit PDF Export:** Generates professional strategic audit reports for CEOs and CFOs.
 
 ---
 
-# What TrueROAS Does
+## 🏗️ System Architecture
 
-## Data Collection
-
-Integrates with:
-
-* Meta Graph API
-* Shopify APIs
-
-## Reconciliation Engine
-
-Processes and compares:
-
-* Ad spend
-* Platform-reported conversions
-* Revenue signals
-* Financial outcomes
-
-## Variance Detection
-
-Identifies meaningful differences between:
-
-* Platform reporting
-* Business outcomes
-
-## Risk Monitoring
-
-Monitors:
-
-* Spend anomalies
-* Variance thresholds
-* Reconciliation gaps
-
-## Reporting
-
-Produces:
-
-* Executive summaries
-* Reconciliation reports
-* Investigation guidance
-* Decision-support recommendations
+*   **Core Logic:** Bayesian Reconciliation (SciPy) and Decision Intelligence Engines.
+*   **Backend:** FastAPI (Python 3.10+).
+*   **Data Warehouse:** DuckDB (Multi-tenant). Dedicated local files per tenant for extreme speed and isolation.
+*   **Reporting Engine:** WeasyPrint (PDF Export) and Matplotlib (Visual Analytics).
+*   **Accountability Layer:** Background workers that reconcile past decisions against future financial reality.
 
 ---
 
-# Decision Intelligence Workflow
+## 📊 Audit Workflow
 
-TrueROAS follows a structured process:
-
-Observation
-
-↓
-
-Evidence Review
-
-↓
-
-Potential Explanations
-
-↓
-
-Confidence Assessment
-
-↓
-
-Risk Evaluation
-
-↓
-
-Recommended Next Actions
-
-The objective is not certainty.
-
-The objective is defensible decision making.
+1.  **Sync:** Connect Meta and Shopify via `/api/v1/sync`.
+2.  **Analyze:** Diagnose performance health via `/api/v1/status`.
+3.  **Audit:** Download the **Audit Report PDF** for strategic planning.
+4.  **Correct:** Export the "Truth File" (CAPI CSV) to correct platform attribution.
 
 ---
 
-# Example Executive Output
-
-## Observation
-
-Platform-reported ROAS exceeds financially reconciled performance.
-
-## Evidence
-
-A material variance exists between advertising platform reporting and business outcome data.
-
-## Possible Explanations
-
-* Attribution overlap
-* Tracking discrepancies
-* Delayed reporting
-* Refund activity
-* Customer journey complexity
-
-## Confidence
-
-Medium
-
-## Recommended Action
-
-Investigate attribution settings and reconciliation variance before increasing spend.
+## 🧠 11-Step Strategic Reasoning Logic
+TrueROAS replaces "black box" advice with a traceable reasoning chain:
+1. **Observation:** Detect divergence between platform and verified revenue.
+2. **Evidence:** Quantify reconciliation variance and statistical confidence.
+3. **Hypothesis:** Identify likely causes (e.g., Attribution Overlap).
+4. **Decision Cost:** Quantify potential capital loss (Drawdown) of a wrong move.
+5. **Delay Cost:** Quantify profit lost per 14 days of inaction.
+6. **Evidence Quality:** Score data integrity based on Match Rate and Volatility.
+7. **Readiness:** Measure business scaling capacity via CTR, CR, and Frequency.
+8. **Conditions for Success:** "What Must Be True" (minimum metrics required).
+9. **Expected Value (EV):** Probability-weighted financial return.
+10. **Recommendation:** Actionable advice (e.g., STRONG_SCALE or REDUCE_OR_HOLD).
+11. **Validation:** Post-decision monitoring plan.
 
 ---
 
-# Key Features
+## 🛠️ Installation & Setup
 
-* Multi-tenant architecture
-* Automated schema migrations
-* Financial circuit breaker
-* Reconciliation engine
-* CSV export workflows
-* Telegram monitoring bot
-* Confidence-based reporting
-* Operational risk monitoring
+### 1. Prerequisites
+*   Python 3.12+
+*   Docker & Docker Compose
+*   **Windows Users:** Install GTK+ Runtime for WeasyPrint PDF generation.
 
----
-
-# Security
-
-Security is treated as a first-class requirement.
-
-Features include:
-
-* Salted hashing for sensitive identifiers
-* Path sanitization
-* Transactional migrations
-* Tenant isolation
-* Controlled configuration management
-
----
-
-# Quick Start
-
-## Configure Environment
-
-Create a `.env` file using `.env.example`.
-
-## Start API
-
+### 2. Production Deployment (Docker)
 ```bash
-python main.py
+# 1. Configure .env with your secrets
+# 2. Run in production mode
+docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
-## Start Monitoring Bot
+### 3. Configuration
+Copy `.env.example` to `.env` and configure your credentials.
+**Crucial:** Ensure `APP_SECRET_SALT` is a unique, long string to secure your PII hashing.
 
+### 4. Initialize Database
 ```bash
-python bot.py
+# Migrations run automatically on first API start. Manual:
+python src/trueroas/core/migrations.py
 ```
 
 ---
 
-# Current Status
+## 🔒 Security & Privacy
 
-Version: v1.0
-
-Development Status:
-
-* Core reconciliation engine implemented
-* Meta integration implemented
-* Shopify integration implemented
-* CSV export workflow implemented
-* Decision intelligence layer evolving
+*   **Data Isolation:** Multi-tenant architecture using individual DuckDB files prevents cross-tenant data leakage.
+*   **PII Protection:** Identifiers (Email/Phone) are salted and hashed locally; raw PII is never sent to marketing platforms.
+*   **Auditability:** Every strategic suggestion includes a full trace of the underlying math and data points used.
+*   **Circuit Breaker:** Operational guardrails prevent automated scaling if data variance exceeds safe thresholds.
 
 ---
 
-# Philosophy
+## 📄 License
+© 2024 TrueROAS Team. All rights reserved.
 
-TrueROAS does not attempt to provide a perfect version of reality.
-
-Instead, it provides an independently reconciled view of marketing performance and supports better business decisions through evidence, context, and structured analysis.
-
----
-
-**TrueROAS**
-
-*Precision over vanity. Evidence over assumptions. Decisions over dashboards.*
+**"Precision over vanity. Evidence over assumptions. Decisions over dashboards."**

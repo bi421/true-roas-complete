@@ -1,7 +1,10 @@
-
 import duckdb, random
 from datetime import datetime, timedelta
+import hashlib
+import time
+import httpx
 import os
+from typing import Optional
 from src.trueroas.core.config import settings
 
 def sync_meta(db_path: str):
@@ -32,11 +35,6 @@ def sync_meta(db_path: str):
         
         # Real mode implementation goes here.
         return {"mode": "REAL", "days": 0}
-import hashlib
-import time
-import httpx
-import os
-from typing import Optional
 
 class MetaCAPI:
     """
@@ -116,5 +114,22 @@ class MetaCAPI:
             print(f"CAPI: {order_id} event_id={event_id} received={result.get('events_received')}")
             return result
 
-# Global instance
-capi = MetaCAPI()
+if __name__ == "__main__":
+    from src.trueroas.core.migrations import apply_migrations
+    
+    # Calculate paths for standalone execution from project root
+    # This module is located at: src/trueroas/workers/meta_sync.py
+    current_file_path = os.path.abspath(__file__)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file_path))))
+    tenant_db_path = os.path.join(project_root, "data", "tenants", "default", "warehouse.duckdb")
+    
+    print(f"--- Meta Sync Audit (Mode: {'LIVE' if settings.META_ACCESS_TOKEN else 'DEMO'}) ---")
+    
+    try:
+        # Ensure tables are initialized before sync
+        apply_migrations(tenant_db_path)
+        
+        result = sync_meta(tenant_db_path)
+        print(f"Success: {result}")
+    except Exception as e:
+        print(f"CRITICAL Error during Meta Sync: {e}")

@@ -10,11 +10,14 @@ env/
 venv/
 
 # Databases and Local Data
-data/
+data/tenants/*
 *.duckdb
 
 # Logs
-logs/
-*.log
+data/logs/*
+!data/logs/.gitkeep
+
+# Local utilities
+ngrok
 # Local utilities
 ngrok
