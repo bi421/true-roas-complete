@@ -1,0 +1,47 @@
+name: Nightly BRT Quality Gate
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2 AM nightly
+  workflow_dispatch:      # Гар аргаар ажиллуулах боломжтой
+
+jobs:
+  backup-restore-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start Services (Docker Compose)
+        run: |
+          docker-compose -f docker-compose.yml up -d
+          sleep 15 # Wait for services to start
+
+      - name: Simulate Data Restore
+        run: |
+          # Command to restore database (e.g., pg_restore)
+          # Copy SQLite files to ./data/tenants
+          echo "Restoring simulation data..."
+
+      - name: Run BRT Audit Script
+        env:
+          APP_SECRET_SALT: ${{ secrets.APP_SECRET_SALT }}
+          BRT_JWT_TOKEN: ${{ secrets.BRT_JWT_TOKEN }}
+          TEST_TENANT_SALT: ${{ secrets.TEST_TENANT_SALT }}
+        run: |
+          pip install httpx redis
+          python scripts/brt_audit.py
+
+      - name: Trigger PagerDuty on Failure
+        if: failure()
+        run: |
+          curl -X POST https://events.pagerduty.com/v2/enqueue \
+          -H 'Content-Type: application/json' \
+          -d '{
+            "payload": {
+              "summary": "CRITICAL: TrueROAS Nightly Backup Restore Audit Failed!",
+              "severity": "critical",
+              "source": "GitHub Actions BRT Workflow"
+            },
+            "routing_key": "${{ secrets.PAGERDUTY_ROUTING_KEY }}",
+            "event_action": "trigger"
+          }'

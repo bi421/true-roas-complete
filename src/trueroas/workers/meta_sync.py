@@ -4,8 +4,11 @@ import hashlib
 import time
 import httpx
 import os
+import json
+
 from typing import Optional
 from src.trueroas.core.config import settings
+from src.trueroas.core.breaker import redis_client
 
 def sync_meta(db_path: str):
     """DEMO: generates realistic Meta spend if no token."""
@@ -113,6 +116,61 @@ class MetaCAPI:
             result = r.json()
             print(f"CAPI: {order_id} event_id={event_id} received={result.get('events_received')}")
             return result
+
+    async def pause_campaign(self, campaign_id: str) -> bool:
+        """Pauses a Meta campaign via Graph API."""
+        if not self.access_token: return False
+        
+        url = f"https://graph.facebook.com/{self.api_version}/{campaign_id}"
+        payload = {
+            "status": "PAUSED",
+            "access_token": self.access_token
+        }
+        
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, json=payload, timeout=10.0)
+            if r.status_code == 200:
+                logger.warning(f"Meta API: Campaign {campaign_id} successfully PAUSED by circuit breaker.")
+                return True
+            logger.error(f"Meta API: Failed to pause campaign {campaign_id}: {r.text}")
+            return False
+
+    async def get_campaign_insights(self, tenant_id: str, campaign_id: str) -> dict:
+        """
+        Fetches insights from Meta and caches the raw response for SRE debugging.
+        Aligns with: curl -s "graph.facebook.com/.../insights" | jq ...
+        """
+        if not self.access_token:
+            return {"error": "No access token"}
+
+        cache_key = f"meta:raw_cache:{tenant_id}:{campaign_id}"
+        
+        # 1. Check local cache first to save Meta API credits
+        cached = redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+        url = f"https://graph.facebook.com/{self.api_version}/{campaign_id}/insights"
+        params = {
+            "fields": "purchase_roas,spend,outbound_clicks,conversions",
+            "access_token": self.access_token,
+            "date_preset": "last_90d"
+        }
+
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, params=params, timeout=15.0)
+            if r.status_code != 200:
+                return {"error": "Meta API failure", "status": r.status_code}
+            
+            raw_data = r.json()
+            
+            # 2. Persist raw response to Redis for 'jq' style inspection via debug pod
+            try:
+                redis_client.set(cache_key, json.dumps(raw_data), ex=86400) # 24h TTL
+            except Exception as e:
+                print(f"Failed to cache raw Meta response: {e}")
+
+            return raw_data
 
 if __name__ == "__main__":
     from src.trueroas.core.migrations import apply_migrations

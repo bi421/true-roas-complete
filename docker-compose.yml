@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Redis: Task Broker and Result Backend
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+
+  # Optional: PostgreSQL Database (Managed via DATABASE_TYPE in .env)
+  # To use: Set DATABASE_TYPE=postgres in .env and provide POSTGRES_URL
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-trueroas}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI: Main API Service with 4 worker processes
+  app:
+    build: .
+    restart: always
+    command: uvicorn src.trueroas.main:app --host 0.0.0.0 --port 8001 --workers 4
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8001:8001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Celery Worker: Handles background sync and PDF generation with 2 processes
+  worker:
+    build: .
+    restart: always
+    command: celery -A src.trueroas.workers.tasks.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Celery Beat: Manages scheduled nightly reconciliation cycles
+  beat:
+    build: .
+    restart: always
+    command: celery -A src.trueroas.workers.tasks.celery_app beat --loglevel=info
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  # Note: SQLite data and reports are persisted via the host-mounted ./data volume

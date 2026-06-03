@@ -1,4 +1,5 @@
 import uvicorn
+import os
 from src.trueroas.core.config import settings
 
 if __name__ == "__main__":
@@ -6,6 +7,6 @@ if __name__ == "__main__":
         "src.trueroas.main:app",
         host=settings.APP_HOST,
         port=settings.APP_PORT,
-        workers=1,  # DuckDB single-writer restriction
+        workers=settings.WORKERS_COUNT,
         reload=False
     )

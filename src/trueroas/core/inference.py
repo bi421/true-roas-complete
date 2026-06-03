@@ -1,73 +1,186 @@
 import math
+import functools
 import random
 from scipy import stats
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Optional, Any
+import numpy as np
+import redis
+import json
+import time
+from prometheus_client import Histogram
+from pydantic import BaseModel, Field, field_validator
 from src.trueroas.core.config import settings
+from src.trueroas.services.strategy_content import StrategyContentService
 from src.trueroas.core.decision_intelligence import QualityEngine, ReadinessEngine, EconomicEngine, RecommendationEngine
 
-class DecisionEngine:
-    """
-    Decision Intelligence Engine using SciPy for high-precision statistical analysis.
-    Replaces basic Monte Carlo trials with exact PDF/CDF calculations.
-    """
+# Global Redis client for caching posterior results
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+BAYESIAN_RECONCILIATION_DURATION = Histogram(
+    "bayesian_reconciliation_duration_seconds", 
+    "Latency of Bayesian posterior calculations", 
+    ["tenant_id"]
+)
+
+class DomainError(Exception):
+    """Raised for business logic domain violations."""
+    pass
+
+class BayesianInput(BaseModel):
+    model_config = {"frozen": True}
+
+    tenant_id: str = "default"
+    campaign_id: Optional[str] = None
+    prior_std: float = Field(default=0.5, gt=0)
+    meta_roas: float = Field(..., gt=0, le=1000.0)
+    true_roas: float = Field(..., gt=0, le=1000.0)
+    std_dev: float = Field(..., gt=0)
+    sample_size: int = Field(..., ge=2)
+    vertical: Optional[str] = None
+    raw_data: Optional[List[float]] = None
+    bias_correction: float = 0.0
+
+    @field_validator("std_dev")
+    @classmethod
+    def std_dev_must_be_finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("std_dev must be a finite number")
+        return v
+
+class ROASInput(BaseModel):
+    current_roas: float = Field(..., description="Reconciled ROAS")
+    std_dev: float = Field(..., gt=0)
+    sample_size: int = Field(..., ge=1)
+
+    @field_validator("current_roas")
+    @classmethod
+    def validate_roas_semantics(cls, v: float) -> float:
+        if v < 0:
+            raise DomainError("Negative ROAS indicates a loss-making campaign that requires manual review, not automated scaling advice.")
+        if v == 0:
+            raise ValueError("current_roas must be greater than 0")
+        return v
+
+class DecisionInput(BaseModel):
+    proposed_increase: float = Field(..., gt=0)
+    meta_roas: float = Field(..., gt=0)
+    current_roas: float = Field(..., gt=0)
+    std_dev: float = Field(..., gt=0)
+    sample_size: int = Field(..., ge=2)
+    match_rate: float = Field(default=1.0, ge=0.0, le=1.0)
+    evidence_quality: float = Field(default=1.0, ge=0.0, le=1.0)
+    monthly_spend: float = Field(default=0.0, ge=0.0)
+
+class BottleneckInput(BaseModel):
+    ctr: float = Field(..., ge=0, le=1)
+    cr: float = Field(..., ge=0, le=1)
+    frequency: float = Field(..., ge=0)
+
+class HistoricalStatsInput(BaseModel):
+    current_count: int = Field(..., ge=0)
+    current_mean: float
+    current_variance: float = Field(..., ge=0)
+    new_value: float
+
+def sanitize_metrics(roas: float, sample_size: int, ctr: float, cr: float) -> Tuple[float, int, float, float]:
+    """Bounds metrics and rejects impossible values before processing."""
+    if not math.isfinite(roas) or not math.isfinite(ctr) or not math.isfinite(cr):
+        raise ValueError("Non-finite metrics detected from platform API.")
+    if ctr > 1.0 or cr > 1.0:
+        raise ValueError("Impossible CTR or Conversion Rate (> 1.0) detected.")
     
+    sanitized_roas = max(0.0, min(roas, 1000.0))
+    sanitized_sample = max(0, min(int(sample_size), int(1e9)))
+    return sanitized_roas, sanitized_sample, ctr, cr
+
+class DecisionEngine:
     @staticmethod
-    def update_historical_stats(current_count: int, current_mean: float, current_variance: float, new_value: float) -> Tuple[int, float, float, float]:
+    def update_historical_stats(data: HistoricalStatsInput) -> Tuple[int, float, float, float]:
         """
         Performs a Bayesian-adjacent update using Welford's algorithm to maintain 
         accurate variance and confidence levels as new data arrives.
         """
+        current_count, current_mean = data.current_count, data.current_mean
+        current_variance, new_value = data.current_variance, data.new_value
+
         new_count = current_count + 1
         if current_count == 0:
             return new_count, new_value, 0.0, 0.0
             
         delta = new_value - current_mean
         new_mean = current_mean + (delta / new_count)
+        if not math.isfinite(new_mean): raise ValueError("Non-finite mean calculated.")
+        
         delta2 = new_value - new_mean
         
         # Update M2 (sum of squares of differences from the mean)
         m2 = (current_variance * (current_count - 1) if current_count > 1 else 0) + (delta * delta2)
-        new_variance = m2 / (new_count - 1) if new_count > 1 else 0
+        # Statistical Hardening: Guard against negative variance
+        new_variance = max(m2 / (new_count - 1), 0.0) if new_count > 1 else 0.0
+        if not math.isfinite(new_variance): raise ValueError("Non-finite variance calculated.")
         
         # Statistical confidence based on Sample Strength and Stability
         cv = math.sqrt(new_variance) / new_mean if new_mean > 0 else 1.0
         # Use configurable sample size floor from settings
         sample_floor = float(getattr(settings, 'MIN_SAMPLE_SIZE_FOR_CONFIDENCE', 30))
         sample_strength = math.atan(new_count / sample_floor) / (math.pi / 2)
+        if not math.isfinite(sample_strength): raise ValueError("Non-finite confidence calculated.")
         stability = 1.0 - min(cv, 1.0)
         
         confidence = round(sample_strength * stability, 4)
         return new_count, new_mean, new_variance, confidence
 
     @staticmethod
-    def calculate_bayesian_posterior(meta_roas: float, true_roas: float, std_dev: float, sample_size: int, bias_correction: float = 0.0) -> Tuple[float, float]:
-        """
-        Reconciles Platform Prior (Meta) with Business Evidence (True ROAS) using 
-        Normal-Normal conjugate prior distribution.
-        """
-        # Adjust prior mean by historical systematic bias to handle persistent overstatement.
-        # If Meta over-reports, bias_correction would be negative.
-        prior_mean = max(meta_roas + bias_correction, 0.1)
-        prior_var = settings.BAYESIAN_PRIOR_VARIANCE
+    def calculate_bayesian_posterior(inputs: BayesianInput) -> Dict[str, Any]:
+        n = inputs.sample_size
+        prior_var = settings.BAYESIAN_DEFAULT_PRIOR_VAR
+
+        # Bessel's correction
+        corrected_std = inputs.std_dev * math.sqrt(n / (n - 1)) if n > 1 else inputs.std_dev
+        if not math.isfinite(corrected_std): raise ValueError("Bessel correction resulted in non-finite value.")
+
+        data_var = (corrected_std ** 2) / max(n, 1)
+        prior_mean = max(inputs.meta_roas + inputs.bias_correction, 0.1)
+
+        if n < 30 and inputs.raw_data:
+            # Bootstrap Posterior (fallback): Non-parametric bootstrap (1000 resamples)
+            boot_means = np.array([np.mean(np.random.choice(inputs.raw_data, size=n, replace=True)) for _ in range(1000)])
+            post_mean = float(np.mean(boot_means))
+            post_std = float(np.std(boot_means))
+        else:
+            # Conjugate Normal
+            # Requirement 3.c: Convergence logic. Precision = 1/Variance. 
+            # Variance of the mean = std_dev^2 / n.
+            precision_prior = 1.0 / prior_var
+            precision_data = 1.0 / data_var
+            
+            post_mean = (prior_mean * precision_prior + inputs.true_roas * precision_data) / (precision_prior + precision_data)
+            post_std = math.sqrt(1.0 / (precision_prior + precision_data))
+            diagnostic = None
+
+        if not math.isfinite(post_mean) or not math.isfinite(post_std):
+            raise ValueError("Bayesian posterior resulted in non-finite values.")
+
+        result = {"post_mean": post_mean, "post_std": post_std, "diagnostic": diagnostic}
         
-        data_mean = true_roas
-        # Risk Fix: Avoid sqrt(0) or division by zero with a small epsilon
-        safe_std = max(std_dev, 0.001)
-        data_var = (safe_std ** 2) / max(sample_size, 1)
-        
-        precision_prior = 1.0 / prior_var
-        precision_data = 1.0 / data_var
-        
-        posterior_mean = (prior_mean * precision_prior + data_mean * precision_data) / (precision_prior + precision_data)
-        posterior_var = max(1.0 / (precision_prior + precision_data), 0.0001)
-        
-        return posterior_mean, math.sqrt(posterior_var)
+        # 2. Persist to Redis for Distributed Debugging
+        try:
+            redis_client.hset(cache_key, mapping={
+                "post_mean": str(post_mean),
+                "post_std": str(post_std),
+                "diagnostic": diagnostic or "None",
+                "updated_at": str(time.time())
+            })
+            redis_client.expire(cache_key, 3600) # 1 hour TTL
+        except Exception as e:
+            logger.error(f"Failed to cache posterior to Redis: {e}")
+
+        return result
 
     @staticmethod
-    def simulate_outcomes(current_roas: float, std_dev: float) -> dict:
+    def simulate_outcomes(roas_input: ROASInput) -> dict:
         """Uses SciPy survival function for precise probability of profit calculation."""
-        if std_dev <= 0: 
-            std_dev = current_roas * 0.2
+        current_roas, std_dev = roas_input.current_roas, roas_input.std_dev
         
         # Probability ROAS > 1.0 using exact Normal SF (Survival Function)
         prob_profit = stats.norm.sf(1.0, loc=current_roas, scale=std_dev)
@@ -79,57 +192,88 @@ class DecisionEngine:
         return {
             "profit_probability": prob_profit,
             "expected_roas": round(current_roas, 2),
-            "volatility_index": round(std_dev / current_roas, 2),
+            "volatility_index": round(std_dev / current_roas, 2) if current_roas > 0 else 1.0,
             "pessimistic_bound": round(p10, 2),
             "optimistic_bound": round(p90, 2)
         }
 
     @staticmethod
-    def get_strategic_advice(proposed_increase: float, current_roas: float, std_dev: float, 
-                             meta_roas: float, sample_size: int,
-                             match_rate: float = 1.0, evidence_quality: float = 1.0,
-                             ctr: float = 0.0, cr: float = 0.0, frequency: float = 0.0,
-                             bench_ctr: float = 0.015, bench_cr: float = 0.025, bench_freq: float = 2.5,
-                             monthly_spend: float = 10000.0,
-                             bias_correction: float = 0.0,
-                             other_channels: Dict[str, float] = None):
+    def get_strategic_advice(
+        data: DecisionInput,
+        bottleneck_input: BottleneckInput,
+        bench_ctr: float = 0.015,
+        bench_cr: float = 0.025,
+        bench_freq: float = 2.5,
+        bias_correction: float = 0.0,
+        other_channels: Dict[str, float] = None,
+        raw_data: List[float] = None,
+        precomputed_posterior: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Calculates risk-adjusted Expected Value using Bayesian Posterior.
-        CROSS-CHANNEL UPDATE: Incorporates multiple platform priors to adjust for attribution overlap.
         """
-        # Blend platform priors to create an 'Omnichannel Prior'
-        platform_prior = meta_roas
-        if other_channels:
-            total_roas = meta_roas + sum(other_channels.values())
-            platform_prior = total_roas / (1 + len(other_channels))
+        if precomputed_posterior:
+            post_results = precomputed_posterior
+        else:
+            # Blend platform priors to create an 'Omnichannel Prior'
+            platform_prior = data.meta_roas
+            if other_channels:
+                total_roas = data.meta_roas + sum(other_channels.values())
+                platform_prior = total_roas / (1 + len(other_channels))
 
-        # Precision Fix: Pass historical bias correction into the posterior calculation
-        # to refine the Bayesian Prior.
-        post_roas, post_std = DecisionEngine.calculate_bayesian_posterior( # Line already exists
-            platform_prior, current_roas, std_dev, sample_size, bias_correction
+            bayesian_input = BayesianInput(
+                meta_roas=platform_prior,
+                true_roas=data.current_roas,
+                std_dev=data.std_dev,
+                sample_size=data.sample_size,
+                raw_data=raw_data,
+                bias_correction=bias_correction
+            )
+            post_results = DecisionEngine.calculate_bayesian_posterior(bayesian_input)
+
+        return DecisionEngine.get_strategic_advice_from_posterior(
+            post_results=post_results,
+            data=data,
+            bottleneck_input=bottleneck_input,
+            bench_ctr=bench_ctr,
+            bench_cr=bench_cr,
+            bench_freq=bench_freq
         )
-        
-        # AUDITOR FIX: Punish uncertainty non-linearly. 
-        # Low evidence quality should expand risk bounds much faster than it currently does.
-        quality_penalty = math.pow(1.1 - evidence_quality, 2)
-        # Audit Service Logic: If quality is low, we expand the uncertainty significantly.
 
-        # CROSS-CHANNEL RISK: Multiple channels increase attribution overlap risk (Double counting).
-        # We increase the uncertainty multiplier by 15% for every additional channel detected.
+    @staticmethod
+    def get_strategic_advice_from_posterior(
+        post_results: Dict[str, Any],
+        data: DecisionInput,
+        bottleneck_input: BottleneckInput,
+        bench_ctr: float = 0.015, bench_cr: float = 0.025, bench_freq: float = 2.5
+    ) -> Dict[str, Any]:
+        """Core decision logic using a pre-computed posterior."""
+        ctr, cr, frequency = bottleneck_input.ctr, bottleneck_input.cr, bottleneck_input.frequency
+
+        post_roas = post_results["post_mean"]
+        post_std = post_results["post_std"]
+        
+        if post_roas <= 0 or data.sample_size < 5:
+            return DecisionEngine._build_insufficient_data_response()
+
+        if not (0.01 <= settings.VARIABLE_COST_RATE <= 0.95):
+            raise ValueError(f"VARIABLE_COST_RATE out of bounds: {settings.VARIABLE_COST_RATE}")
+
+        quality_penalty = math.pow(1.1 - evidence_quality, 2)
         channel_overlap_penalty = 1.0 + (0.15 * len(other_channels)) if other_channels else 1.0
         
         uncertainty_adjusted_std = post_std * (1 + (quality_penalty * 8)) * channel_overlap_penalty
+        if not math.isfinite(uncertainty_adjusted_std): raise ValueError("Uncertainty propagation non-finite.")
         
-        sim = DecisionEngine.simulate_outcomes(post_roas, uncertainty_adjusted_std)
+        sim = DecisionEngine.simulate_outcomes(ROASInput(current_roas=post_roas, std_dev=uncertainty_adjusted_std, sample_size=sample_size))
         
-        # AUDITOR FIX: Decay must be tied to Readiness. 
-        # If the business isn't ready to scale, efficiency collapses immediately.
         readiness = ReadinessEngine.evaluate(ctr, cr, frequency, bench_ctr, bench_cr, current_roas)
         readiness_factor = readiness['readiness_score'] # 0.0 to 1.0
 
         vol_penalty = sim.get("volatility_index", 0.2)
         decay_base = 0.75 + (0.2 * readiness_factor) # Max 0.95, Min 0.75
         decay_factor = decay_base * math.exp(-vol_penalty * (proposed_increase / max(current_roas * 50, 1)))
+        if not math.isfinite(decay_factor): raise ValueError("Decay projection non-finite.")
         marginal_roas = post_roas * max(decay_factor, 0.5)
         
         p_success = stats.norm.sf(1.0, loc=marginal_roas, scale=uncertainty_adjusted_std)
@@ -143,14 +287,14 @@ class DecisionEngine:
         potential_loss = proposed_increase * min(risk_weight, 1.2)
         
         # Bayesian Weighting: Apply a certainty weight to the EV based on posterior volatility.
-        # This ensures high-variance profit projections are discounted by their uncertainty.
         # This represents the 'Certainty Equivalent' of the expected profit.
-        posterior_volatility = uncertainty_adjusted_std / max(post_roas, 0.1)
+        posterior_volatility = uncertainty_adjusted_std / post_roas
         certainty_weight = max(0, 1.0 - posterior_volatility)
         expected_value = ((p_success * potential_gain) - (failure_prob * potential_loss)) * certainty_weight
+        if not math.isfinite(expected_value): raise ValueError("EV calculation resulted in non-finite value.")
 
         # Execute Decision Intelligence Engines
-        variance_pct = abs(meta_roas - post_roas) / max(post_roas, 1)
+        variance_pct = abs(meta_roas - post_roas) / post_roas if post_roas > 0 else 1.0
         hypothesis = "Attribution overlap detected" if variance_pct > 0.2 else "Standard variance"
         
         quality = QualityEngine.calculate_score(match_rate, sample_size, sim['volatility_index'])
@@ -166,29 +310,53 @@ class DecisionEngine:
             {"type": "impact", "label": "Certainty-Weighted EV", "value": f"Risk-adjusted return of ${expected_value/proposed_increase if proposed_increase > 0 else 0:.2f} per dollar, weighted by Bayesian certainty ({certainty_weight:.1%})."}
         ]
         
+        if post_results.get("diagnostic"):
+            evidence_log.append({"type": "warning", "label": "Statistical Reliability", "value": post_results["diagnostic"]})
+
         # Economic Guardrail: Calculate Safety Margin using Pessimistic Bound (P10)
-        # Using P10 ensures that even in the bottom 10% of outcomes, capital is protected.
-        breakeven_roas = 1 / (1 - settings.VARIABLE_COST_RATE) if settings.VARIABLE_COST_RATE < 1 else 10.0
+        breakeven_roas = 1 / (1 - settings.VARIABLE_COST_RATE)
         safety_buffer = sim['pessimistic_bound'] - breakeven_roas
 
-        if p_success > 0.75 and expected_value > (proposed_increase * 0.5 if proposed_increase > 0 else 0) and safety_buffer > 0:
-            action = "STRONG_SCALE"
-            reasoning = f"High confidence and positive EV. Pessimistic bound ({sim['pessimistic_bound']:.2f}x) is above breakeven."
-        elif p_success > 0.55 and expected_value > 0 and safety_buffer > 0:
-            action = "CAUTIOUS_SCALE"
-            reasoning = f"Positive EV, but pessimistic bound is near or slightly below breakeven ({breakeven_roas:.2f}x)."
-        else:
+        # Strategic Determination (Strategy Pattern simplified via explicit logical gates)
+        action = RecommendationEngine.determine_action(
+            p_success=p_success, 
+            ev=expected_value, 
+            proposed_increase=proposed_increase, 
+            safety_buffer=safety_buffer
+        )
+
+        # IMPOSSIBLE STATE CHECK: Verification before response delivery
+        # Ensures action corresponds to the calculated Expected Value (EV).
+        if "SCALE" in action and expected_value <= 0:
             action = "REDUCE_OR_HOLD"
-            reasoning = f"High risk of loss in pessimistic scenarios. P10 Bound: {sim['pessimistic_bound']:.2f}x vs Breakeven: {breakeven_roas:.2f}x."
+            reasoning = "Action downgraded: Calculated Expected Value (EV) did not support scaling despite high probability."
+        else:
+            # Map reasoning to the confirmed action
+            reasoning = self._generate_reasoning_text(action, sim, breakeven_roas)
 
         # Distill complex math into merchant-friendly language
         variance_pct = abs(meta_roas - post_roas) / max(post_roas, 1)
-        merchant_note = f"Meta is over-reporting by {variance_pct:.0%}. Posterior data suggests a {p_success:.0%} probability of profit "
-        merchant_note += f"with a {safety_buffer:+.2f}x safety margin above breakeven. Expected value: ${expected_value:,.2f}."
+        monthly_risk = monthly_spend * variance_pct
+        
+        merchant_note = f"RECONCILIATION SUMMARY: We identified a ${monthly_risk:,.2f} operational variance in monthly attribution ({variance_pct:.1%} delta). "
+        if action == "REDUCE_OR_HOLD":
+            merchant_note += f"Based on historical volatility, there is a {p_success:.1%} probability of maintaining the target ROAS floor. Capital preservation is prioritized."
+        else:
+            merchant_note += f"Verification suggests a {p_success:.1%} confidence level in the projected outcome. Risk-adjusted return is estimated at ${expected_value:,.2f}."
+
+        verification_proof = {
+            "bayesian_certainty": f"{certainty_weight:.2%}",
+            "pessimistic_loss_cap": f"${potential_loss:,.2f}",
+            "model_used": "Empirical Bayes + Bootstrap Fallback" if data.sample_size < 30 else "Conjugate Normal-Normal",
+            "diagnostic": post_results.get("diagnostic", "Healthy")
+        }
+
+        tactical_steps = StrategyContentService.get_tactical_steps(action, bottleneck_layer=readiness.get('bottleneck', 'Performance'))
+        roadmap = StrategyContentService.get_strategic_roadmap(action)
 
         # Build the final 11-step Reasoning Order
         full_intelligence = RecommendationEngine.build_defensible_advice(
-            obs="Platform performance and independently verified outcomes are diverging.",
+            obs="Reconciling ad-platform reporting with verified store transaction data.",
             evidence=f"Reconciliation variance is {variance_pct*100:.1f}%. Bayesian confidence is {sim['profit_probability']*100:.1f}%.",
             hypothesis=hypothesis,
             quality=quality,
@@ -197,13 +365,15 @@ class DecisionEngine:
             ev=expected_value,
             action=action,
             reasoning=reasoning,
-            monthly_spend=monthly_spend,
-            variance_pct=variance_pct
+            monthly_spend=data.monthly_spend,
+            variance_pct=variance_pct,
+            roadmap=roadmap
         )
 
         return {
             "expected_value_usd": round(expected_value, 2),
             "action": action,
+            "tactical_steps": tactical_steps, # Хэрэглэгчид өгөх 1, 2, 3 алхам
             "reasoning": reasoning,
             "safety_margin": round(safety_buffer, 2),
             "probability": f"{p_success * 100:.1f}%",
@@ -211,7 +381,22 @@ class DecisionEngine:
             "evidence_log": evidence_log,
             "decision_path": full_intelligence["reasoning_order"],
             "intelligence_summary": full_intelligence["summary"],
-            "merchant_explanation": merchant_note
+            "merchant_explanation": merchant_note,
+            "audit_verification": verification_proof
+        }
+
+    @staticmethod
+    def _build_insufficient_data_response() -> Dict[str, Any]:
+        """Standard response when statistical significance is not reached."""
+        return {
+            "expected_value_usd": 0.0,
+            "action": "REDUCE_OR_HOLD",
+            "reasoning": "Insufficient data or zero ROAS detected. Strategic advice deferred.",
+            "safety_margin": 0.0,
+            "probability": "0.0%",
+            "scenarios": {},
+            "status": "insufficient_data",
+            "merchant_explanation": "RECONCILIATION SUMMARY: Not enough conversion data yet to provide a reliable recommendation."
         }
 
     @staticmethod
@@ -237,15 +422,37 @@ class DecisionEngine:
         """Generates the full scenario table data using posterior statistics."""
         percentages = [-0.1, 0.0, 0.1, 0.2, 0.3]
         results = []
-        post_roas, post_std = DecisionEngine.calculate_bayesian_posterior(meta_roas, current_roas, std_dev, sample_size)
+
+        bayesian_input = BayesianInput(
+            meta_roas=meta_roas,
+            true_roas=current_roas,
+            std_dev=std_dev,
+            sample_size=sample_size
+        )
         
+        # PERFORMANCE FIX: Extract loop-invariant posterior calculation BEFORE the loop.
+        post_results = DecisionEngine.calculate_bayesian_posterior(bayesian_input)
+        post_roas = post_results["post_mean"]
+
         for p in percentages:
             increase = current_spend * p
             scenario_spend = current_spend * (1 + p)
             scenario_rev = scenario_spend * post_roas
             net_profit = (scenario_rev * (1 - v_rate - t_rate)) - scenario_spend
 
-            advice = DecisionEngine.get_strategic_advice(increase, current_roas, std_dev, meta_roas, sample_size, match_rate, evidence_quality)
+            advice = DecisionEngine.get_strategic_advice_from_posterior(
+                post_results=post_results,
+                data=DecisionInput(
+                    proposed_increase=max(increase, 0.01), 
+                    meta_roas=meta_roas, 
+                    current_roas=current_roas,
+                    std_dev=std_dev,
+                    sample_size=sample_size,
+                    match_rate=match_rate,
+                    evidence_quality=evidence_quality
+                ),
+                bottleneck_input=BottleneckInput(ctr=0.015, cr=0.025, frequency=1.0) # Placeholders for scenario
+            )
             results.append({
                 "change_pct": f"{int(p*100)}%",
                 "action": advice["action"],

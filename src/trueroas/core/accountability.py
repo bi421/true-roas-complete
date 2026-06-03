@@ -37,6 +37,15 @@ class DecisionAccountabilityEngine:
                 FROM decision_audit_trail 
                 WHERE reconciled_at IS NOT NULL
             """).fetchone()[0] or 0.0
+            
+            # Trend comparison for planning (Today vs Last 30 days)
+            trends = con.execute("""
+                SELECT 
+                    AVG(CASE WHEN timestamp >= CURRENT_DATE - INTERVAL '7 days' THEN actual_roas_7d END) as current_7d_roas,
+                    AVG(CASE WHEN timestamp < CURRENT_DATE - INTERVAL '7 days' THEN actual_roas_30d END) as historical_30d_roas
+                FROM decision_audit_trail
+                WHERE reconciled_7d_at IS NOT NULL
+            """).fetchone()
 
             return {
                 "accuracy_score": accuracy,
@@ -45,6 +54,11 @@ class DecisionAccountabilityEngine:
                 "historical_benchmark": round(overall_accuracy, 1),
                 "systematic_bias": bias,
                 "mean_absolute_error": mae,
+                "roas_trend": {
+                    "current": round(trends[0] or 0.0, 2),
+                    "historical": round(trends[1] or 0.0, 2),
+                    "delta_pct": round(((trends[0] or 0) - (trends[1] or 0)) / (trends[1] or 1) * 100, 1) if trends[1] else 0
+                },
                 "trust_label": "High" if accuracy > 75 else "Stable" if accuracy > 60 else "Learning",
                 "status_message": f"Engine has a {accuracy}% accuracy rate based on {total} past scaling outcomes."
             }

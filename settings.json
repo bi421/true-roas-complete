@@ -1,0 +1,13 @@
+{
+    "python.analysis.typeCheckingMode": "strict",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+    },
+    "python.linting.enabled": false,
+    "python.linting.ruffEnabled": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "ruff.importStrategy": "fromEnvironment",
+    "python.analysis.diagnosticSeverityOverrides": { "reportUnusedImport": "error" }
+}

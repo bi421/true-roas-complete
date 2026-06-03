@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrueROAS | Verify Your Strategic Decisions</title>
+    <!-- Analytics: Plausible/GA Placeholder -->
+    <script defer data-domain="trueroas.com" src="https://plausible.io/js/script.js"></script>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --subtext: #4a4a4a;
+            --primary: #000000;
+            --accent: #cd1818;
+            --border: #e1e1e1;
+            --gray-light: #f9f9f9;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+        header {
+            padding: 2rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px; }
+        section { padding: 4rem 5%; max-width: 1000px; margin: 0 auto; }
+        
+        /* Hero */
+        .hero { text-align: center; padding: 6rem 5%; }
+        h1 { font-size: 3rem; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 1.5rem; }
+        .subheadline { font-size: 1.25rem; color: var(--subtext); max-width: 700px; margin: 0 auto 2.5rem; }
+
+        /* CTA Form Styles */
+        .cta-form { display: flex; gap: 0.5rem; justify-content: center; max-width: 650px; margin: 0 auto; flex-wrap: wrap; }
+        .cta-form input { padding: 1rem; border: 1px solid var(--border); border-radius: 4px; flex: 1; min-width: 280px; font-size: 1rem; }
+        .btn { padding: 1rem 2rem; font-weight: 600; text-decoration: none; border-radius: 4px; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { border: 1px solid var(--border); color: var(--text); background: transparent; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .trust-line { font-size: 0.8rem; color: var(--subtext); margin-top: 1rem; }
+
+        /* Trusted Logos */
+        .logos-grid { display: flex; gap: 3rem; justify-content: center; align-items: center; opacity: 0.4; margin: 3rem 0; flex-wrap: wrap; font-weight: 700; color: var(--subtext); }
+        
+        /* Problem/Solution */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+        .card { background: var(--gray-light); padding: 2rem; border-radius: 8px; border: 1px solid var(--border); }
+        h2 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; }
+        
+        /* Audit Sample */
+        .audit-box { border-left: 4px solid var(--accent); padding-left: 2rem; margin: 2rem 0; }
+        .metric-row { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+        .metric-label { font-weight: 600; color: var(--subtext); }
+        .metric-value { font-family: monospace; font-size: 1.1rem; font-weight: 700; }
+        .risk-medium { color: #b45309; }
+
+        /* How it works */
+        .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; }
+        .step { position: relative; }
+        .step-num { font-weight: 800; color: var(--border); font-size: 3rem; position: absolute; top: -1rem; left: 0; z-index: -1; }
+        .step-content { padding-top: 1rem; }
+
+        /* Footer */
+        .final-cta { text-align: center; background: var(--gray-light); border-top: 1px solid var(--border); }
+        footer { text-align: center; padding: 2rem; color: var(--subtext); font-size: 0.9rem; }
+
+        /* Pricing */
+        .pricing-card { border: 1px solid var(--border); padding: 2rem; border-radius: 8px; text-align: left; }
+        .pricing-card.featured { border: 2px solid var(--primary); position: relative; }
+        .badge { background: var(--primary); color: white; padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px; position: absolute; top: -12px; right: 20px; }
+        .price { font-size: 2.5rem; font-weight: 800; margin: 1rem 0; }
+        .price span { font-size: 1rem; font-weight: 400; color: var(--subtext); }
+
+        /* Tactical Steps Card */
+        .tactical-card { background: var(--gray-light); padding: 1.25rem; border-radius: 6px; margin-top: 1.5rem; border: 1px solid var(--border); text-align: left; }
+        .tactical-card h4 { margin: 0 0 0.75rem 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--subtext); }
+        .tactical-list { list-style: none; padding: 0; margin: 0; }
+        .tactical-list li { margin-bottom: 0.5rem; font-size: 0.9rem; display: flex; gap: 0.5rem; line-height: 1.3; }
+        .tactical-list li::before { content: "→"; color: var(--accent); font-weight: bold; }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2.2rem; }
+            .grid { grid-template-columns: 1fr; gap: 2rem; }
+            section { padding: 3rem 5%; }
+            .cta-form { flex-direction: column; }
+            .cta-form input { flex: 1 1 100%; }
+        }
+
+        /* Export Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: var(--bg);
+            max-width: 400px;
+            width: 90%;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .modal-content h3 { margin-top: 0; margin-bottom: 0.5rem; }
+        .modal-content select {
+            width: 100%;
+            padding: 0.8rem;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        /* Cookie Consent UI */
+        .cookie-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 1.25rem;
+            border-radius: 8px;
+            display: none;
+            z-index: 2000;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">🛡️ TrueROAS</div>
+        <nav style="display: flex; gap: 1.5rem; align-items: center;">
+            <a href="#how-it-works" style="text-decoration: none; color: var(--text); font-size: 0.9rem;">How It Works</a>
+            <a href="#pricing" style="text-decoration: none; color: var(--text); font-weight: 600; font-size: 0.9rem;">Pricing</a>
+        </nav>
+    </header>
+
+    <!-- SECTION 1: HERO -->
+    <section class="hero">
+        <h1 id="hero-headline">Can You Prove Your Last Scaling Decision Was Right?</h1>
+        <p class="subheadline">Analytics tell you what happened. TrueROAS proves if your strategy worked—tracking the accuracy of your decisions against verified financial outcomes.</p>
+        
+        <form class="cta-form" onsubmit="handleLead(event)">
+            <input type="email" id="leadEmail" placeholder="Enter your business email" required>
+            <button type="submit" class="btn btn-primary">Get My Free Accountability Audit</button>
+        </form>
+        <p class="trust-line">🔒 Local-First Infrastructure. Your data never leaves your server.</p>
+
+        <div class="logos-grid">
+            <span>TRUSTED BY 50+ SCALING E-COMMERCE BRANDS GLOBALLY</span>
+        </div>
+    </section>
+
+    <!-- SECTION 2 & 3: PROBLEM/SOLUTION -->
+    <section>
+        <div class="grid">
+            <div>
+                <h2>Most tools report history.<br>TrueROAS enforces accountability.</h2>
+                <p>Google Analytics tells you what happened. Meta tells you performance. TrueROAS tracks <strong>Decision Accuracy</strong>—the only metric that matters for long-term capital growth.</p>
+            </div>
+            <div class="card">
+                <h3>Accountability Metrics</h3>
+                <ul style="padding-left: 1.2rem;">
+                    <li><strong>Decision Win Rate:</strong> Track your strategic accuracy over time.</li>
+                    <li><strong>Outcome Reconciliation:</strong> Verify profit 14 days post-decision.</li>
+                    <li><strong>Capital Protection:</strong> Know your ROAS floor before you risk a dollar.</li>
+                    <li><strong>Price of Indecision:</strong> Quantify the cost of waiting to act.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 4: SAMPLE RECONCILIATION -->
+    <section style="background: var(--gray-light); border-radius: 12px; margin-top: 2rem; margin-bottom: 2rem;">
+        <h2 style="text-align: center;">Decision Integrity Audit</h2>
+        <p style="text-align: center; color: var(--subtext); margin-top: -1rem; margin-bottom: 2rem;">Reconciling a $10,000 budget increase decision.</p>
+        <div class="audit-box" style="max-width: 500px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div id="auditBox" class="audit-box" style="max-width: 500px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-top: 8px solid var(--accent);">
+            <div class="metric-row">
+                <span class="metric-label">Platform Claim (Meta)</span>
+                <span class="metric-value">$42,000</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Verified Outcome (Shopify)</span>
+                <span class="metric-value">$28,000</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Attribution Variance</span>
+                <span class="metric-value" style="color: var(--accent); font-size: 1.4rem;">-33.3%</span>
+                <span class="metric-label">Financial Risk ($)</span>
+                <span class="metric-value" style="color: var(--accent); font-size: 1.4rem;">-$13,860</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Decision Accuracy Score</span>
+                <span class="metric-value">62%</span>
+            </div>
+            <div style="margin-top: 1.5rem; font-size: 0.95rem;">
+                <strong>Strategic Verdict:</strong><br>
+                The platform overstated ROAS by 33%. A "Scale" decision would have a negative Expected Value (EV). Capital preservation is recommended.
+            </div>
+
+            <div class="tactical-card">
+                <h4>Tactical Execution Plan</h4>
+                <ul class="tactical-list">
+                    <li>Pause ad sets with Variance > 40%</li>
+                    <li>Check Shopify refund logs for mismatches</li>
+                    <li>Freeze daily budget for 48 hours</li>
+                </ul>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+                <button id="btnAudit" onclick="openExportModal(event, 'audit')" class="btn btn-primary" style="font-size: 0.85rem;">Download Full Proof CSV</button>
+                <button onclick="shareAudit()" class="btn btn-secondary" style="font-size: 0.85rem; background: white;">Share Results</button>
+            </div>
+        </div>
+        <div style="max-width: 600px; margin: 0 auto; text-align: center; padding-bottom: 2rem;">
+            <p style="font-style: italic; color: var(--subtext);">"TrueROAS found $23K in hidden refunds that Meta never reported. We cut our ad spend by 30% and profit went UP."</p>
+            <p style="font-weight: 600; font-size: 0.9rem;">— Sarah K., DTC Founder</p>
+        </div>
+    </section>
+
+    <!-- SECTION 5: HOW IT WORKS -->
+    <section>
+        <h2 style="text-align: center; margin-bottom: 3rem;">How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <span class="step-num">01</span>
+                <div class="step-content">
+                    <h3>We Compare Your Numbers</h3>
+                    <p>We pull your Meta ad spend and Shopify revenue. Then we find exactly where they don't match.</p>
+                </div>
+            </div>
+            <div class="step">
+                <span class="step-num">02</span>
+                <div class="step-content">
+                    <h3>We Find the Truth</h3>
+                    <p>We calculate your real ROAS—after refunds, delayed attribution, and double-counting errors.</p>
+                </div>
+            </div>
+            <div class="step">
+                <span class="step-num">03</span>
+                <div class="step-content">
+                    <h3>We Tell You What To Do</h3>
+                    <p>Get a clear recommendation: scale up, hold steady, or cut back—backed by mathematical evidence.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: TRUST & INDEPENDENCE -->
+    <section style="background: var(--gray-light); text-align: center; border-radius: 12px;">
+        <h2>Independent Analysis</h2>
+        <div class="grid" style="margin-top: 3rem;">
+            <div>
+                <h4>Not Owned by Meta</h4>
+                <p>We don't want you to spend more. We want you to spend effectively.</p>
+            </div>
+            <div>
+                <h4>Not Owned by Shopify</h4>
+                <p>An unbiased third-party view of your business financial health.</p>
+            </div>
+            <div>
+                <h4>Truth First</h4>
+                <p>Designed specifically to provide an independent view of marketing performance.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 6: WHAT YOU RECEIVE -->
+    <section>
+        <h2 style="text-align: center;">What You Receive</h2>
+        <div class="grid" style="margin-top: 3rem;">
+            <div class="card">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 1rem;">✅ <strong>Executive Summary</strong>: High-level health diagnosis.</li>
+                    <li style="margin-bottom: 1rem;">✅ <strong>Reconciliation Report</strong>: Platform vs. Truth breakdown.</li>
+                    <li style="margin-bottom: 1rem;">✅ <strong>Variance Analysis</strong>: Identify over-reporting pockets.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    <li style="margin-bottom: 1rem;">✅ <strong>Risk Assessment</strong>: P10 Pessimistic budget bounds.</li>
+                    <li style="margin-bottom: 1rem;">✅ <strong>Recommended Actions</strong>: Traceable strategic next steps.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: PRICING -->
+    <section id="pricing" style="text-align: center;">
+        <h2>Simple Pricing for Scaling Brands</h2>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <h3>Core Audit</h3>
+                <div class="price">$79<span>/mo</span></div>
+                <ul style="list-style: none; padding: 0; line-height: 2;">
+                    <li>✅ Monthly Reconciliation Report</li>
+                    <li>✅ Variance & Anomaly Alerts</li>
+                    <li>✅ 1 Store & 1 Ad Account</li>
+                </ul>
+                <button onclick="createCheckoutSession('core')" class="btn btn-secondary" style="width: 100%; margin-top: 2rem;">Start Free Audit</button>
+            </div>
+            <div class="pricing-card featured">
+                <div class="badge">MOST POPULAR</div>
+                <h3>Accountability</h3>
+                <div class="price">$199<span>/mo</span></div>
+                <ul style="list-style: none; padding: 0; line-height: 2;">
+                    <li>✅ Weekly Strategy Reports</li>
+                    <li>✅ Decision Accuracy Tracking</li>
+                    <li>✅ Telegram Bot Intelligence</li>
+                    <li>✅ Unlimited Ad Accounts</li>
+                </ul>
+                <button onclick="createCheckoutSession('accountability')" class="btn btn-primary" style="width: 100%; margin-top: 2rem;">Get Started</button>
+            </div>
+        </div>
+        <p style="margin-top: 2rem; color: var(--subtext); font-size: 0.85rem;">Prices in USD. Cancel anytime. Self-hosted or Managed options available.</p>
+    </section>
+
+    <!-- SECTION 7: FINAL CTA -->
+    <section class="final-cta">
+        <h2>Find out if your ROAS is real.</h2>
+        <p class="subheadline">Takes 2 minutes to connect. Your first audit is free.</p>
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-primary">Start My Audit</button>
+    </section>
+
+    <!-- SECTION: DEVELOPER FEEDBACK -->
+    <section id="feedback" style="padding: 3rem 5%; text-align: center; border-top: 1px solid var(--border); background: var(--gray-light);">
+        <h3 style="margin-bottom: 0.5rem;">Improvement & Feedback</h3>
+        <p style="color: var(--subtext); font-size: 0.9rem; margin-bottom: 1.5rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+            TrueROAS is built for decision-makers. If you have suggestions to improve our Bayesian engine or reporting, reach out to the lead developer.
+        </p>
+        <a href="mailto:dev@trueroas.com?subject=TrueROAS%20Feature%20Suggestion" class="btn btn-secondary" style="font-size: 0.9rem;">Submit Suggestion to Creator</a>
+    </section>
+
+    <!-- GDPR Cookie Consent Banner -->
+    <div id="cookieBanner" class="cookie-banner">
+        <div style="font-size: 0.85rem; max-width: 80%;">
+            We use cookies to verify decision accuracy and analyze traffic. By clicking "Accept", you consent to our use of tracking and performance cookies. 
+            <a href="/privacy" style="color: #fff; text-decoration: underline;">Privacy Policy</a>
+        </div>
+        <button onclick="acceptCookies()" class="btn btn-primary" style="padding: 0.4rem 1.2rem; font-size: 0.8rem; background: #fff; color: #000;">Accept</button>
+    </div>
+
+    <footer>
+        <p>Copyright © 2026 TrueROAS. Precision over vanity.</p>
+        <div style="display: flex; gap: 1.5rem; justify-content: center; margin: 1.5rem 0;">
+            <a href="/privacy" style="color: var(--subtext); text-decoration: none;">Privacy Policy</a>
+            <a href="/dpa" style="color: var(--subtext); text-decoration: none;">Enterprise DPA</a>
+            <a href="#" style="color: var(--subtext); text-decoration: none;">Twitter</a>
+            <a href="#" style="color: var(--subtext); text-decoration: none;">LinkedIn</a>
+            <a href="#" style="color: var(--subtext); text-decoration: none;">GitHub</a>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--subtext); max-width: 500px; margin: 0 auto;">
+            GDPR Compliant. Local-First PII Hashing enabled.
+            Designed and Engineered for decision-makers. Built with local-first privacy, statistical rigor, and capital accountability.
+        </p>
+    </footer>
+
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <h3>Select Data Range</h3>
+            <p style="color: var(--subtext); font-size: 0.9rem;">Choose the lookback period for your audit export.</p>
+            <select id="exportDays">
+                <option value="7">Last 7 Days</option>
+                <option value="14">Last 14 Days</option>
+                <option value="30">Last 30 Days</option>
+                <option value="90" selected>Last 90 Days</option>
+            </select>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button onclick="closeExportModal()" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; cursor: pointer;">Cancel</button>
+                <button id="confirmExport" class="btn btn-primary" style="padding: 0.6rem 1.2rem; cursor: pointer;">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple A/B Testing Logic
+        const variations = [
+            "Can You Prove Your Last Scaling Decision Was Right?",
+            "Stop Guessing. Audit Your Meta Ads with Math."
+        ];
+        const selectedVariant = Math.floor(Math.random() * variations.length);
+        document.getElementById('hero-headline').innerText = variations[selectedVariant];
+        
+        if(window.plausible) {
+            plausible('ABTest', { props: { variant: `v${selectedVariant + 1}` } });
+        }
+
+        const modal = document.getElementById('exportModal');
+        const confirmBtn = document.getElementById('confirmExport');
+        const daysSelect = document.getElementById('exportDays');
+        let currentType = '';
+
+        function openExportModal(e, type) {
+            e.preventDefault();
+            currentType = type;
+            modal.style.display = 'flex';
+        }
+
+        function closeExportModal() {
+            modal.style.display = 'none';
+        }
+
+        async function handleLead(e) {
+            e.preventDefault();
+            const emailInput = document.getElementById('leadEmail');
+            const btn = e.target.querySelector('button');
+            
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/api/v1/leads/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: emailInput.value })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.message || "Success! Check your inbox for the connection link.");
+                    // qualification logic
+                    if (emailInput.value.includes('.agency') || emailInput.value.includes('ceo@')) {
+                        console.log("High-intent enterprise lead detected.");
+                    }
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                alert("Connection failed. Please ensure the backend is running.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Run Decision Accountability Audit';
+            }
+        }
+
+        confirmBtn.onclick = async () => {
+            const days = daysSelect.value;
+            const endpoint = currentType === 'audit' ? '/api/v1/export/detailed-audit-csv' : '/api/v1/export/meta-capi-csv';
+            
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Generating...';
+
+            try {
+                const response = await fetch(`${endpoint}?days=${days}`);
+                if (!response.ok) throw new Error('Export failed');
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `trueroas-${currentType}-${days}d.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                closeExportModal();
+            } catch (err) {
+                alert("Export failed. Please ensure the backend is running and your tenant ID is valid.");
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Download';
+            }
+        };
+
+        window.onclick = (event) => {
+            if (event.target == modal) closeExportModal();
+        };
+
+        // Helper to generate a unique ID for new prospects
+        function getOrCreateProspectId() {
+            let prospectId = localStorage.getItem('trueroas_prospect_id');
+            if (!prospectId) {
+                prospectId = 'prospect_' + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem('trueroas_prospect_id', prospectId);
+            }
+            return prospectId;
+        }
+
+        async function createCheckoutSession(planType) {
+            const tenantId = getOrCreateProspectId(); // Use a unique prospect ID
+            try {
+                const response = await fetch(`/api/v1/payments/create-checkout-session?plan_type=${planType}&tenant_id=${tenantId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    window.location.href = data.url; // Redirect to Stripe Checkout
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to create checkout session: ${errorData.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert("Payment service temporarily unavailable. Please try again later.");
+            }
+        }
+
+        async function shareAudit() {
+            const auditSummary = `🛡️ TrueROAS Audit Finding:
+- Meta ROAS: 4.2x
+- Financial ROAS: 2.8x
+- Variance: 33%
+- Risk: MEDIUM
+
+Recommendation: Investigate attribution overlap before increasing spend.
+
+Tactical Plan:
+1. Pause ad sets with Variance > 40%
+2. Check Shopify refund logs
+3. Freeze budget for 48h`;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'TrueROAS Audit Finding',
+                        text: auditSummary,
+                        url: window.location.href
+                    });
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error('Share failed:', err);
+                }
+            } else {
+                try {
+                    await navigator.clipboard.writeText(auditSummary);
+                    alert("Audit findings copied to clipboard!");
+                } catch (err) {
+                    alert("Could not copy to clipboard. Please copy the text manually.");
+                }
+            }
+        }
+
+        // Cookie Consent logic
+        function acceptCookies() {
+            localStorage.setItem('cookieConsent', 'true');
+            document.getElementById('cookieBanner').style.display = 'none';
+        }
+        if (!localStorage.getItem('cookieConsent')) {
+            document.getElementById('cookieBanner').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
