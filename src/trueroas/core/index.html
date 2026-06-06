@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrueROAS | Scale on Truth, Not Platform Lies</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-text { background: linear-gradient(90deg, #3b82f6, #2dd4bf); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white">
+    <nav class="container mx-auto px-6 py-6 flex justify-between items-center">
+        <div class="text-2xl font-extrabold tracking-tighter">True<span class="text-blue-500">ROAS</span></div>
+        <div class="hidden md:flex space-x-8 text-sm font-medium text-slate-400">
+            <a href="#" class="hover:text-white transition">How it Works</a>
+            <a href="#" class="hover:text-white transition">Bayesian Engine</a>
+            <a href="#" class="hover:text-white transition">Pricing</a>
+        </div>
+        <a href="/api/v1/leads" class="bg-blue-600 hover:bg-blue-500 px-5 py-2.5 rounded-lg text-sm font-semibold transition">Get Started</a>
+    </nav>
+
+    <header class="container mx-auto px-6 pt-20 pb-32 text-center">
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-6 leading-tight">
+            Stop Scaling on <br><span class="gradient-text text-blue-400">Platform Lies.</span>
+        </h1>
+        <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+            TrueROAS reconciles Meta Ads signals with bank-truth Shopify data using high-precision Bayesian inference. Know your real ROI in real-time.
+        </p>
+        <div class="flex flex-col md:flex-row justify-center gap-4">
+            <button class="bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition">Fix My Attribution</button>
+            <button class="border border-slate-800 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition">Watch Demo</button>
+        </div>
+        <div class="mt-16 flex justify-center space-x-12 opacity-50 grayscale invert">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c5/Meta_Platforms_Inc._logo.svg" alt="Meta" class="h-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/0/0e/Shopify_logo_2018.svg" alt="Shopify" class="h-8">
+        </div>
+    </header>
+
+    <section class="bg-slate-900/50 py-24 border-y border-slate-900">
+        <div class="container mx-auto px-6 grid md:grid-cols-3 gap-12">
+            <div class="space-y-4">
+                <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold">Bayesian Stability</h3>
+                <p class="text-slate-400">Our engine identifies statistical noise and filters out attribution lag automatically.</p>
+            </div>
+            <div class="space-y-4">
+                <div class="w-12 h-12 bg-teal-500/20 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold">Bot Defense</h3>
+                <p class="text-slate-400">Detect and penalize bot traffic before it drains your daily budget.</p>
+            </div>
+            <div class="space-y-4">
+                <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold">Real-time Sync</h3>
+                <p class="text-slate-400">Incremental reconciliation triggered by every Shopify webhook event.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-12 text-center text-slate-500 text-sm">
+        <p>© 2024 TrueROAS Team. Built in Austin, TX 🇺🇸</p>
+    </footer>
+</body>
+</html>

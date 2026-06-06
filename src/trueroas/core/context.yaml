@@ -1,0 +1,35 @@
+project_context:
+  name: "TrueROAS Decision Intelligence"
+  objective: "Reconcile marketing platform claims with bank-truth sales (Shopify)."
+  
+  data_sources:
+    - meta_ads:
+        attribution_windows: ["1-day", "7-day", "28-day"]
+        api_version: "v21.0"
+        logic: "Platform reports based on click time. Often overstates revenue due to overlap."
+    - shopify:
+        sync_trigger: "order_created_at"
+        truth_logic: "Reconciled via bank-cleared status. Note: use created_at for alignment, not paid_at."
+        
+  known_drift:
+    - technical_drift:
+        meta_api: "Meta API v19+ introduces changes in Advantage+ reporting that may skew ROAS."
+        attribution_lag: "Shopify data takes ~2 hours for full bank clearance; Meta data lags up to 48 hours for full attribution."
+
+  inference_constraints:
+    - bayesian_prior: "Platform claims are treated as 'biased priors'."
+    - safety_boundary: "ROAS < 1.0 is treated as a capital drain regardless of platform claims."
+    - inventory_link: "Do not recommend scaling if inventory_level < 10% (Inventory Sync Roadmap)."
+
+  environment_parity:
+    - database:
+        local: "SQLite (WAL mode) per tenant for high-speed local isolation."
+        prod: "PostgreSQL with RLS (Row Level Security) for enterprise scaling."
+    - auth:
+        pii_protection: "BLAKE2b keyed hashing. Salt versioning is mandatory for rotation."
+
+  development_standards:
+    - magic_numbers: "Forbidden in code. Must be defined in settings.py or constants.py."
+    - reasoning_order: "Decisions must follow the 11-step audit chain defined in DECISION_LOGIC.md."
+    - qa_standard: "Mandatory AI Code Review via CodeRabbit for security, lineage, and statistics."
+    - copyright: "Every file must include the 2024-2026 TrueROAS Team proprietary header."

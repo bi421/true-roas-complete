@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s # Data collection frequency
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'trueroas-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['app:8001'] # Access app via Docker internal network
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
