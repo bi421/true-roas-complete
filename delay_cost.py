@@ -1,7 +1,16 @@
 class DecisionDelayEngine:
-    """Estimates the profit lost by waiting too long to act."""
+    """Engine for estimating the financial opportunity cost of delaying decisions."""
+
     @staticmethod
     def calculate(ev: float) -> dict:
+        """Calculates the estimated profit lost across various delay timeframes.
+
+        Args:
+            ev (float): The calculated expected value of the strategic move.
+
+        Returns:
+            dict: Estimated costs of delay for 7, 14, and 30-day periods.
+        """
         # EV represents the total value of the move. 
         # We assume a standard 7-day implementation cycle for the daily rate.
         daily_opportunity = max(ev / 7.0, 0)

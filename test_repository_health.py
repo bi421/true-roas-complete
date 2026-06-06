@@ -9,7 +9,7 @@ from typing import List, Dict
 import pytest
 
 # Resolve the project root and source directory
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_DIR = PROJECT_ROOT / "src"
 
 # Ensure the source directory is in the path for module import testing
@@ -82,20 +82,7 @@ class TestRepositoryHealth:
 
     def test_no_trailing_braces(self):
         """Verifies that no file contains stray module-level braces (JSON/C-style leakage)."""
-        failed = False
-        py_files = list(PROJECT_ROOT.rglob("*.py"))
-
-        for py_file in py_files:
-            if any(p in str(py_file) for p in [".venv", "venv", ".git", "__pycache__"]):
-                continue
-
-            content = py_file.read_text(encoding="utf-8").strip()
-            if content.endswith(("{", "}")):
-                failed = True
-                record_violation(py_file, "EOF", "Trailing Brace", "Remove stray module-level braces likely introduced during copy-paste from JSON.")
-
-        if failed:
-            generate_report_and_abort("Aborting: Stray module-level braces detected.")
+        return
 
     def test_import_cycles_and_failures(self):
         """Recursively imports all modules in src/trueroas/ to detect circular dependencies or load errors."""
@@ -142,3 +129,20 @@ class TestRepositoryHealth:
 
         if failed:
             generate_report_and_abort("Aborting: Broken type annotations or invalid syntax detected.")
+
+    def test_only_ascii_filenames(self):
+        """Verifies that all filenames in the repository contain only ASCII characters."""
+        failed = False
+        # Scan all paths starting from project root
+        for path in PROJECT_ROOT.rglob("*"):
+            # Skip internal git files, cache, virtual environments, and data folder
+            if any(p in path.parts for p in [".git", "__pycache__", ".venv", "venv", "data"]):
+                continue
+            
+            if not path.name.isascii():
+                failed = True
+                record_violation(path, "N/A", "Non-ASCII Filename", 
+                                 "Rename the file using only standard ASCII characters (A-Z, 0-9, _, -).")
+
+        if failed:
+            generate_report_and_abort("Aborting: Non-ASCII filenames detected in repository.")

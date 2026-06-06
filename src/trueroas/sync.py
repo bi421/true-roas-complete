@@ -12,7 +12,7 @@ from src.trueroas.core.breaker import redis_client
 from src.trueroas.core.database import get_db_session
 from src.trueroas.core.subscriptions import Tenant
 
-router = APIRouter(prefix="/api/v1", tags=["Data Sync"])
+router = APIRouter(tags=["Data Sync"])
 
 class SyncResponse(BaseModel):
     task_id: str

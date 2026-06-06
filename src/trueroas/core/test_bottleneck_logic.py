@@ -4,8 +4,9 @@
 
 import pytest
 from pydantic import ValidationError
+
 from src.trueroas.core.decision_intelligence import GrowthEngine
-from src.trueroas.core.config import settings
+
 
 def test_saturation_only():
     """Must detect ONLY Audience/Saturation."""
@@ -18,6 +19,7 @@ def test_saturation_only():
     assert "evidence_log" in issue
     assert result["primary_issue"] == issue
 
+
 def test_ctr_only():
     """Must detect ONLY Creative/Attention/CTR."""
     # settings.DEFAULT_BENCHMARK_CTR is 0.015
@@ -29,6 +31,7 @@ def test_ctr_only():
     assert issue["priority"] == 1
     assert result["primary_issue"] == issue
 
+
 def test_cr_only():
     """Must detect ONLY Offer/Friction."""
     # settings.DEFAULT_BENCHMARK_CR is 0.025
@@ -39,6 +42,7 @@ def test_cr_only():
     assert issue["issue"] == "Friction"
     assert issue["priority"] == 1
     assert result["primary_issue"] == issue
+
 
 def test_multiple_issues():
     """Must detect ALL THREE issues in a priority-sorted list."""
@@ -53,6 +57,7 @@ def test_multiple_issues():
     # Primary issue is the first one detected (Audience in our fixed detection order)
     assert result["primary_issue"]["layer"] == "Audience"
 
+
 def test_no_issues():
     """Must detect Financial/Capital Efficiency (default) when healthy."""
     result = GrowthEngine.detect_bottleneck(frequency=1.0, ctr=0.05, cr=0.05)
@@ -63,17 +68,18 @@ def test_no_issues():
     assert issue["priority"] == 2
     assert result["primary_issue"] == issue
 
+
 def test_threshold_boundary_strict_inequality():
     """Must NOT trigger at exact threshold values (strict inequality check)."""
     avg_f = 2.5
     avg_c = 0.01
     result = GrowthEngine.detect_bottleneck(
-        frequency=avg_f, ctr=avg_c, cr=0.05, 
-        avg_freq=avg_f, avg_ctr=avg_c
+        frequency=avg_f, ctr=avg_c, cr=0.05, avg_freq=avg_f, avg_ctr=avg_c
     )
     # Since it's exactly at threshold, it shouldn't trigger Saturation or CTR issues.
     # It should return the default Financial issue.
     assert result["primary_issue"]["layer"] == "Financial"
+
 
 def test_negative_inputs_validation():
     """Must raise ValidationError via Pydantic for negative values."""

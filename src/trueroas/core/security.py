@@ -1,8 +1,12 @@
 import re
 import hmac
 import hashlib
+import os
+import redis
 from pathlib import Path
 from src.trueroas.core.config import settings
+
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 def sanitize_tenant_id(tenant_id: str) -> str:
     if not tenant_id:
@@ -18,14 +22,37 @@ def derive_tenant_salt(tenant_secret_salt: str) -> bytes:
         hashlib.sha256
     ).digest()
 
+def sign_audit_payload(payload: str, tenant_secret_salt: str) -> str:
+    """
+    Generates a HMAC-SHA256 signature for audit trail integrity.
+    Ensures decisions (like campaign pauses) are verifiable and tamper-proof.
+    """
+    key = derive_tenant_salt(tenant_secret_salt)
+    return hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+def verify_audit_signature(payload: str, signature: str, tenant_secret_salt: str) -> bool:
+    """Verifies that an audit record has not been tampered with since creation."""
+    expected_sig = sign_audit_payload(payload, tenant_secret_salt)
+    return hmac.compare_digest(expected_sig, signature)
+
 def hash_pii(tenant_id: str, value: str, tenant_secret_salt: str) -> str:
+    """
+    Hashes PII with versioned salt to allow for rotation migrations.
+    Uses BLAKE2b for speed and keyed hashing.
+    Salt Versioning: Managed via SALT_VERSION env variable (GitHub Actions Secret in CI).
+    """
     if not value: return ""
-    salt = derive_tenant_salt(tenant_secret_salt)
+    
+    version = os.getenv("SALT_VERSION", "v1")
+    base_salt = derive_tenant_salt(tenant_secret_salt)
+    # Better salt derivation using HMAC for the versioned component
+    versioned_salt = hmac.new(base_salt, version.encode(), hashlib.sha256).digest()
+
     return hashlib.blake2b(
         value.encode(),
-        key=salt,
+        key=versioned_salt,
         digest_size=32,
-        person=tenant_id.encode()[:16]
+        person=hashlib.sha256(tenant_id.encode()).digest()[:16]
     ).hexdigest()
 
 def validate_path(path: Path) -> Path:
@@ -38,3 +65,11 @@ def validate_path(path: Path) -> Path:
         return resolved
     except Exception:
         raise PermissionError("Security Violation: Invalid path resolution")
+
+def check_rate_limit(tenant_id: str, limit: int = 200, window: int = 3600):
+    key = f"ratelimit:{tenant_id}"
+    with redis_client.pipeline() as pipe:
+        pipe.incr(key)
+        pipe.expire(key, window, nx=True)
+        current, _ = pipe.execute()
+    return current <= limit

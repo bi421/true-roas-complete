@@ -1,19 +1,21 @@
 import pytest
-from pathlib import Path
-from src.trueroas.security import sanitize_tenant_id, validate_path, hash_pii
+
 from src.trueroas.core.config import settings
+from src.trueroas.security import hash_pii, sanitize_tenant_id, validate_path
+
 
 def test_tenant_id_sanitization_and_injection():
     """Ensure injection attempts and traversal characters are stripped."""
     assert sanitize_tenant_id("../../etc/passwd") == "etcpasswd"
     assert sanitize_tenant_id("tenant' OR 1=1--") == "tenantOR11"
-    assert sanitize_tenant_id("a" * 100) == "a" * 64 # Max length
+    assert sanitize_tenant_id("a" * 100) == "a" * 64  # Max length
     assert sanitize_tenant_id("") == "default"
+
 
 def test_path_traversal_prevention():
     """Verify validate_path blocks access outside the BASE_DATA_DIR."""
     base_dir = settings.DATA_DIR
-    
+
     # Valid path
     valid = base_dir / "tenants" / "default" / "warehouse.db"
     assert validate_path(valid) == valid.resolve()
@@ -23,14 +25,15 @@ def test_path_traversal_prevention():
     with pytest.raises(PermissionError, match="Security: Path .* is outside allowed"):
         validate_path(invalid)
 
+
 def test_hash_collision_and_isolation():
     """Verify deterministic hashing and unique salt per tenant."""
     email = "user@example.com"
-    
+
     hash1 = hash_pii("tenant_a", email)
     hash2 = hash_pii("tenant_a", email)
     hash_different_tenant = hash_pii("tenant_b", email)
-    
+
     # Deterministic
     assert hash1 == hash2
     # Isolated (Salted per tenant)

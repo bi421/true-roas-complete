@@ -157,7 +157,7 @@
 *   Add Prometheus metrics for Meta API call success/failure rates and latency.
 *   Alert on `5xx` responses from Meta API.
 
-### 9. Disk Full (`/data/tenants/` дүүрсэн)
+### 9. Disk Full (`/data/tenants/` is full)
 **Symptoms:**
 *   New tenant creation fails.
 *   SQLite tenant DB writes fail.
@@ -198,6 +198,15 @@
 **Post-incident:**
 *   Conduct mandatory security training for all developers on secret management best practices.
 *   Implement automated secret scanning in CI/CD pipeline.
+
+### 11. Annual Compliance Maintenance
+**Task: Meta Data Use Checkup**
+*   **Frequency:** Annual.
+*   **Procedure:** 
+    1. Go to Meta Business Settings → App Dashboard.
+    2. Complete the "Data Use Checkup" to verify that TrueROAS handles `ads_management` data according to current privacy standards.
+    3. Ensure the Privacy Policy URL is reachable and updated with current rate limit disclosures.
+*   **Owner:** Compliance Officer / Lead Engineer.
 
 ### 11. PostgreSQL Primary Failure / Data Corruption
 **Symptoms:**

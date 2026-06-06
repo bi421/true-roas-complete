@@ -27,14 +27,15 @@ This checklist verifies that all strategic, technical, and compliance guardrails
   - Financial audit trail hardened (Append-only job logs with digital signatures).
   - Cookie consent and DPA links verified on landing page.
 - [ ] **E2E (7.1-7.2):** Load and Chaos tests attached.
-  - Metrics endpoint p95 latency < 200ms at 1000 concurrent requests.
-  - Worker crash recovery (kill -9) verified via `acks_late`.
+  - [ ] **Load Test:** Staging stress test pending (Validated locally with `test_performance.py`).
+  - [ ] **Crash Recovery:** Worker crash recovery (kill -9) verified in sandbox.
 
 ## 🚨 Critical Blockers (Must be resolved before Production)
-- [ ] **IaC Implementation:** Terraform/Pulumi scripts verified for managed DB/Redis (Rollback & Disaster Recovery path).
+- [ ] **Infrastructure Provisioning:** Terraform scripts are written but `terraform apply` is pending for Prod/Staging.
 - [ ] **Restore Validation:** Automated monthly test of database backup restoration process.
 - [ ] **Math & Edge-Case Safety:** `inference.py` engine fuzzed with Hypothesis for ROAS=0 and high-variance scenarios.
-
+## 🌐 Network & Access
+- [ ] **Domain Setup:** DNS configuration and official SSL/TLS certificates pending.
 ## ⚙️ Operational Readiness
 - [ ] **SSL/TLS Certificates:** Configured via Cloudflare or Nginx with HSTS enabled and minimum TLS 1.2.
 - [ ] **Secrets Rotation:** Production keys for Stripe, Resend, and Meta rotated. Old development keys invalidated.

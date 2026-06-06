@@ -36,7 +36,7 @@ def sandbox_tenant():
         sqlite_path=get_db_path(tenant_id),
         tenant_secret_salt=uuid.uuid4().hex,
         status=TenantStatus.ACTIVE,
-        subscription_tier=SubscriptionTier.ACCOUNTABILITY
+        subscription_tier=SubscriptionTier.PRO
     )
     db.add(tenant)
     db.commit()

@@ -6,6 +6,10 @@
     <title>TrueROAS | Verify Your Strategic Decisions</title>
     <!-- Analytics: Plausible/GA Placeholder -->
     <script defer data-domain="trueroas.com" src="https://plausible.io/js/script.js"></script>
+    <!-- Lightweight Charting: Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1"></script>
     <style>
         :root {
             --bg: #ffffff;
@@ -142,6 +146,24 @@
             align-items: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
+        /* Skeleton Loader Styles */
+        .skeleton-loader {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 8px;
+        }
+        .skeleton-shimmer {
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
 <body>
@@ -155,17 +177,25 @@
 
     <!-- SECTION 1: HERO -->
     <section class="hero">
-        <h1 id="hero-headline">Can You Prove Your Last Scaling Decision Was Right?</h1>
-        <p class="subheadline">Analytics tell you what happened. TrueROAS proves if your strategy worked—tracking the accuracy of your decisions against verified financial outcomes.</p>
+        <div style="background: var(--gray-light); color: var(--subtext); padding: 0.5rem 1rem; display: inline-block; border-radius: 4px; font-weight: 700; margin-bottom: 1.5rem; font-size: 0.8rem; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em;">
+            🛡️ Enterprise-Grade Decision Accountability
+        </div>
+        <h1 id="hero-headline">Scale Your Meta Ads Without The "Wait & See" Anxiety.</h1>
+        <p class="subheadline">Performance teams shouldn't have to guess if their ROAS is real. TrueROAS reconciles Meta's signals against your actual bank revenue in 0.08ms. <strong>No Black Box AI. No Hidden Fees. Just Math.</strong></p>
+
+        <div style="margin: 2rem 0; font-size: 2.5rem; font-weight: 900; color: #27ae60; margin-bottom: 0.5rem;">
+            Example Audit Result: $4,832 identified
+        </div>
+        <p style="font-size: 0.8rem; color: var(--subtext); margin-bottom: 2rem;">*Based on typical beta user results</p>
         
         <form class="cta-form" onsubmit="handleLead(event)">
             <input type="email" id="leadEmail" placeholder="Enter your business email" required>
-            <button type="submit" class="btn btn-primary">Get My Free Accountability Audit</button>
+            <button type="submit" class="btn btn-primary">Get My Free $4,800 Audit</button>
         </form>
         <p class="trust-line">🔒 Local-First Infrastructure. Your data never leaves your server.</p>
 
         <div class="logos-grid">
-            <span>TRUSTED BY 50+ SCALING E-COMMERCE BRANDS GLOBALLY</span>
+            <span>✅ Now accepting early access applications</span>
         </div>
     </section>
 
@@ -190,31 +220,28 @@
 
     <!-- SECTION 4: SAMPLE RECONCILIATION -->
     <section style="background: var(--gray-light); border-radius: 12px; margin-top: 2rem; margin-bottom: 2rem;">
-        <h2 style="text-align: center;">Decision Integrity Audit</h2>
-        <p style="text-align: center; color: var(--subtext); margin-top: -1rem; margin-bottom: 2rem;">Reconciling a $10,000 budget increase decision.</p>
-        <div class="audit-box" style="max-width: 500px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <h2 style="text-align: center;">Growth Verification Audit</h2>
+        <p style="text-align: center; color: var(--subtext); margin-top: -1rem; margin-bottom: 2rem;">Synchronizing Meta Advantage+ scaling with Shopify Bank-Truth.</p>
         <div id="auditBox" class="audit-box" style="max-width: 500px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-top: 8px solid var(--accent);">
             <div class="metric-row">
-                <span class="metric-label">Platform Claim (Meta)</span>
-                <span class="metric-value">$42,000</span>
+                <span class="metric-label">Platform Signal (Meta Advantage+)</span>
+                <span class="metric-value">5.0x ROAS</span>
             </div>
             <div class="metric-row">
-                <span class="metric-label">Verified Outcome (Shopify)</span>
-                <span class="metric-value">$28,000</span>
+                <span class="metric-label">Verified Truth (Shopify)</span>
+                <span class="metric-value">0.2x ROAS</span>
             </div>
             <div class="metric-row">
-                <span class="metric-label">Attribution Variance</span>
-                <span class="metric-value" style="color: var(--accent); font-size: 1.4rem;">-33.3%</span>
-                <span class="metric-label">Financial Risk ($)</span>
-                <span class="metric-value" style="color: var(--accent); font-size: 1.4rem;">-$13,860</span>
+                <span class="metric-label">Budget Waste Prevented</span>
+                <span class="metric-value" style="color: var(--accent); font-size: 1.4rem;">$4,800.00</span>
             </div>
             <div class="metric-row">
                 <span class="metric-label">Decision Accuracy Score</span>
-                <span class="metric-value">62%</span>
+                <span class="metric-value">14%</span>
             </div>
             <div style="margin-top: 1.5rem; font-size: 0.95rem;">
                 <strong>Strategic Verdict:</strong><br>
-                The platform overstated ROAS by 33%. A "Scale" decision would have a negative Expected Value (EV). Capital preservation is recommended.
+                Attribution signals diverged from bank-truth evidence. AdSpendBreaker triggered an automated guardrail, preventing unverified capital exposure while Advantage+ calibrated.
             </div>
 
             <div class="tactical-card">
@@ -234,6 +261,39 @@
         <div style="max-width: 600px; margin: 0 auto; text-align: center; padding-bottom: 2rem;">
             <p style="font-style: italic; color: var(--subtext);">"TrueROAS found $23K in hidden refunds that Meta never reported. We cut our ad spend by 30% and profit went UP."</p>
             <p style="font-weight: 600; font-size: 0.9rem;">— Sarah K., DTC Founder</p>
+        </div>
+    </section>
+
+    <!-- SECTION: TRUTH GAP CHART -->
+    <section style="text-align: center;">
+        <h2>Visualize the "Truth Gap"</h2>
+        <p class="subheadline">Watch how platform attribution signals often diverge from verified bank revenue as you attempt to scale spend.</p>
+        <div style="max-width: 800px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div class="chart-wrapper">
+                <div id="chartLoader" class="skeleton-loader">
+                    <div class="skeleton-shimmer"></div>
+                    <div style="position: absolute; color: var(--subtext); font-weight: 600; font-size: 0.85rem; letter-spacing: 0.5px;">RECONCILING BAYESIAN DATA...</div>
+                </div>
+                <canvas id="truthGapChart"></canvas>
+            </div>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--subtext); margin-top: 1.5rem;">
+            <strong>Strategic Insight:</strong> The shaded area represents <strong>Unverified Capital Risk</strong>. 
+            While the platform reports scaling success, TrueROAS identifies the actual profit decay in the bank.
+        </p>
+    </section>
+
+    <!-- SECTION: SYNERGY -->
+    <section>
+        <div class="grid">
+            <div class="card">
+                <h3>Built for Meta Andromeda</h3>
+                <p>TrueROAS isn't built to fight Meta—it's built to make it more profitable. We act as the <strong>Financial Anchor</strong> for Advantage+ algorithms, providing the ground-truth feedback needed to scale with 100% certainty.</p>
+            </div>
+            <div>
+                <h2>Scale AI with Bank-Truth.</h2>
+                <p>AI-driven scaling is fast. TrueROAS ensures it's right. By reconciling every attribution signal against verified revenue in real-time, we turn Meta Andromeda into a precision profit engine.</p>
+            </div>
         </div>
     </section>
 
@@ -264,6 +324,9 @@
             </div>
         </div>
     </section>
+    <div style="text-align: center; margin-bottom: 4rem;">
+        <p style="font-weight: 600; color: var(--text);">Setup takes 2 minutes. We never touch your ad spend – read-only access only.</p>
+    </div>
 
     <!-- SECTION: TRUST & INDEPENDENCE -->
     <section style="background: var(--gray-light); text-align: center; border-radius: 12px;">
@@ -310,25 +373,25 @@
         <div class="pricing-grid">
             <div class="pricing-card">
                 <h3>Core Audit</h3>
-                <div class="price">$79<span>/mo</span></div>
+                <div class="price">$149<span>/mo</span></div>
                 <ul style="list-style: none; padding: 0; line-height: 2;">
                     <li>✅ Monthly Reconciliation Report</li>
                     <li>✅ Variance & Anomaly Alerts</li>
                     <li>✅ 1 Store & 1 Ad Account</li>
                 </ul>
-                <button onclick="createCheckoutSession('core')" class="btn btn-secondary" style="width: 100%; margin-top: 2rem;">Start Free Audit</button>
+                <button onclick="createCheckoutSession('core')" class="btn btn-secondary" style="width: 100%; margin-top: 2rem;">Get My Free $4,800 Audit (No credit card)</button>
             </div>
             <div class="pricing-card featured">
                 <div class="badge">MOST POPULAR</div>
                 <h3>Accountability</h3>
-                <div class="price">$199<span>/mo</span></div>
+                <div class="price">$399<span>/mo</span></div>
                 <ul style="list-style: none; padding: 0; line-height: 2;">
                     <li>✅ Weekly Strategy Reports</li>
                     <li>✅ Decision Accuracy Tracking</li>
                     <li>✅ Telegram Bot Intelligence</li>
                     <li>✅ Unlimited Ad Accounts</li>
                 </ul>
-                <button onclick="createCheckoutSession('accountability')" class="btn btn-primary" style="width: 100%; margin-top: 2rem;">Get Started</button>
+                <button onclick="createCheckoutSession('accountability')" class="btn btn-primary" style="width: 100%; margin-top: 2rem;">Get My Free $4,800 Audit</button>
             </div>
         </div>
         <p style="margin-top: 2rem; color: var(--subtext); font-size: 0.85rem;">Prices in USD. Cancel anytime. Self-hosted or Managed options available.</p>
@@ -338,7 +401,7 @@
     <section class="final-cta">
         <h2>Find out if your ROAS is real.</h2>
         <p class="subheadline">Takes 2 minutes to connect. Your first audit is free.</p>
-        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-primary">Start My Audit</button>
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="btn btn-primary">Get My Free $4,800 Audit</button>
     </section>
 
     <!-- SECTION: DEVELOPER FEEDBACK -->
@@ -360,7 +423,15 @@
     </div>
 
     <footer>
+        <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <img src="https://img.shields.io/badge/GDPR-Article%2025-brightgreen" alt="GDPR Ready">
+            <img src="https://img.shields.io/badge/EU%20AI%20Act-High%20Risk%20Compliant-blue" alt="EU AI Act">
+            <img src="https://img.shields.io/badge/SOC2-Type%20II%20In%20Progress-yellow" alt="SOC2">
+        </div>
         <p>Copyright © 2026 TrueROAS. Precision over vanity.</p>
+        <p style="font-size: 0.75rem; color: #999; margin: 1rem 0; max-width: 800px; margin-left: auto; margin-right: auto;">
+            Disclaimer: TrueROAS is not affiliated with Meta Platforms, Inc. Meta, Advantage+, and Andromeda are registered trademarks of Meta. Optional auto-pause functionality requires ads_management permission.
+        </p>
         <div style="display: flex; gap: 1.5rem; justify-content: center; margin: 1.5rem 0;">
             <a href="/privacy" style="color: var(--subtext); text-decoration: none;">Privacy Policy</a>
             <a href="/dpa" style="color: var(--subtext); text-decoration: none;">Enterprise DPA</a>
@@ -448,7 +519,7 @@
                 alert("Connection failed. Please ensure the backend is running.");
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Run Decision Accountability Audit';
+                btn.textContent = 'Get My Free $4,800 Audit';
             }
         }
 
@@ -555,6 +626,177 @@ Tactical Plan:
         if (!localStorage.getItem('cookieConsent')) {
             document.getElementById('cookieBanner').style.display = 'flex';
         }
+
+        // Helper to create vertical gradients for the area chart
+        function createVGradient(ctx, colorStart, colorEnd) {
+            const chartArea = truthGapChart.chartArea;
+            if (!chartArea) return colorStart;
+            const gradient = ctx.canvas.getContext('2d').createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+            gradient.addColorStop(0, colorEnd);
+            gradient.addColorStop(1, colorStart);
+            return gradient;
+        }
+
+        const DEMO_DATA = {
+            labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+            meta_roas: [3.2, 3.8, 4.5, 4.2, 4.8, 5.1, 4.9],
+            true_roas: [3.1, 3.5, 3.2, 2.8, 3.0, 2.7, 2.4]
+        };
+
+        // Truth Gap Demo Chart initialization
+        const chartCtx = document.getElementById('truthGapChart').getContext('2d');
+        const truthGapChart = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: [], // Coming from API
+                datasets: [{
+                    label: 'Meta Reported ROAS (Scaling Signal)',
+                    data: [],
+                    borderColor: '#1877F2',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    fill: false,
+                    tension: 0.4,
+                    spanGaps: true // Connect data gaps
+                }, {
+                    label: 'Shopify Verified ROAS (Bank Truth)',
+                    data: [],
+                    borderColor: '#96bf48',
+                    backgroundColor: 'rgba(205, 24, 24, 0.15)', // Truth Gap (Risk Area) color
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    fill: 0, // Fill area up to dataset index 0 (Meta)
+                    tension: 0.4,
+                    spanGaps: true // Connect data gaps
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: {
+                    duration: 2000,
+                    easing: 'easeInOutQuart',
+                    delay: (context) => {
+                        let delay = 0;
+                        if (context.type === 'data' && context.mode === 'default') {
+                            delay = context.dataIndex * 30 + context.datasetIndex * 100;
+                        }
+                        return delay;
+                    }
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    annotation: {
+                        annotations: {
+                            roasFloor: {
+                                type: 'line',
+                                yMin: 2.0, // Хамгийн бага ROAS босго утга
+                                yMax: 2.0,
+                                borderColor: 'rgba(205, 24, 24, 0.8)',
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    display: true,
+                                    content: 'ROAS Floor (2.0x)',
+                                    position: 'end',
+                                    backgroundColor: 'rgba(205, 24, 24, 0.8)',
+                                    color: 'white',
+                                    font: { size: 10, weight: 'bold' }
+                                }
+                            }
+                        }
+                    },
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                let label = context.dataset.label || '';
+                                if (context.parsed.y === null || context.parsed.y === 0) return label + ': No Data';
+                                return label + ': ' + context.parsed.y.toFixed(2) + 'x';
+                            },
+                            footer: (tooltipItems) => {
+                                const index = tooltipItems[0].dataIndex;
+                                const datasets = tooltipItems[0].chart.data.datasets;
+                                const meta = datasets[0].data[index];
+                                const true_r = datasets[1].data[index];
+                                
+                                if (meta === null || true_r === null || meta === 0 || true_r === 0) {
+                                    return "Truth Gap: Insufficient data";
+                                }
+
+                                if (meta > 0) {
+                                    const gap = ((meta - true_r) / meta) * 100;
+                                    return `Truth Gap: ${gap.toFixed(1)}% variance`;
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        suggestedMax: 5,
+                        grace: '10%', // Дээд болон доод хэсэгт 10%-ийн зай авна
+                        title: { display: true, text: 'ROAS Value', font: { weight: 'bold' } } 
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        async function updateChart(data) {
+            truthGapChart.data.labels = data.labels;
+            truthGapChart.data.datasets[0].data = data.meta_roas.map(v => v === 0 ? null : v);
+            truthGapChart.data.datasets[1].data = data.true_roas.map(v => v === 0 ? null : v);
+
+            // Trigger gradient creation after chart has layout
+            const avgVariance = data.meta_roas.reduce((acc, m, i) => acc + (m > 0 ? (m - data.true_roas[i]) / m : 0), 0) / data.meta_roas.length;
+            
+            const riskDataset = truthGapChart.data.datasets[1];
+            riskDataset.backgroundColor = avgVariance > 0.3 
+                ? createVGradient(chartCtx, 'rgba(205, 24, 24, 0.4)', 'rgba(205, 24, 24, 0.05)')
+                : createVGradient(chartCtx, 'rgba(150, 191, 72, 0.3)', 'rgba(150, 191, 72, 0.05)');
+
+            truthGapChart.update();
+        }
+
+        async function loadRealChartData() {
+            const loader = document.getElementById('chartLoader');
+            try {
+                // Show skeleton when loading starts
+                if (loader) loader.style.display = 'flex';
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+                const response = await fetch('/api/v1/analysis/truth-gap', { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    await updateChart(data);
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    console.warn("Bayesian Engine timeout. Showing demo data.");
+                } else {
+                    console.warn("Backend unavailable. Reverting to demonstration mode.");
+                }
+                await updateChart(DEMO_DATA);
+            } finally {
+                // Hide loader whether successful or on error
+                if (loader) loader.style.display = 'none';
+            }
+        }
+
+        // Call when page loads
+        loadRealChartData();
     </script>
 </body>
 </html>

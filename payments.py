@@ -1,5 +1,6 @@
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from src.trueroas.core.config import settings
 from src.trueroas.core.database import get_db_session
 from src.trueroas.core.subscriptions import SubscriptionService, SubscriptionTier

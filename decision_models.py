@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 class DecisionIntelligenceSummary(BaseModel):
     recommended_action: str

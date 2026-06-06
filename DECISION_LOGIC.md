@@ -12,7 +12,8 @@ Every recommendation passes through a rigorous auditing chain:
 4. **Decision Cost:** Quantify risk-weighted capital loss of a wrong move.
 5. **Delay Cost:** Quantify profit opportunity lost per 14 days of inaction.
 6. **Evidence Quality:** Score data integrity (Match Rate & Volatility).
-7. **Decision Readiness:** Benchmark funnel physics (CTR/CR) to ensure capacity.
+7. **Decision Readiness:** Benchmark funnel physics (CTR/CR) and Inventory Levels.
+7.1 **Lag Compensation:** Apply 7-day attribution decay factor to Meta claims.
 8. **What Must Be True:** Define the performance floor required for success.
 9. **Expected Value:** Calculate the probability-weighted financial return.
 10. **Recommendation:** Final strategic action (Scale vs. Hold).

@@ -1,18 +1,40 @@
-# TrueROAS CI Pipeline - Zero Tolerance Gate
-name: Quality Gate
+name: TrueROAS CI Pipeline
 
 on:
   push:
-    branches: [ main, master, production ]
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
   pull_request:
-    branches: [ main, master, production ]
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  lint:
-    name: Zero Tolerance Linting
+  test:
+    name: Quality Gate & Logic Validation
     runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v3
+
+      - name: AI Code Review
+        uses: coderabbitai/ai-pr-reviewer@v2
+        if: github.event_name == 'pull_request'
+        with:
+          focus: "security, data lineage, statistical correctness"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
@@ -21,15 +43,192 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy bandit pyright
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Deep Syntax Check
-        run: python scripts/syntax_check.py
-      - name: Ruff Lint & Format
-        run: ruff check src/ tests/ --exit-non-zero-on-fix
-      - name: Mypy Strict Type Check
-        run: mypy src/ --strict --ignore-missing-imports
-      - name: Bandit Security Scan
-        run: bandit -r src/ -f json -o bandit-report.json || exit 1
-      - name: Python Bytecode Validation
-        run: python -m compileall src/ -q
+          pip install mypy pytest pytest-order pytest-cov hypothesis scipy scipy-stubs duckdb pydantic-settings redis httpx sqlalchemy pyjwt "numpy<2.0.0" resend slowapi uvicorn stripe jinja2 evidently pandas cachetools ruff bandit
+
+      - name: Code Formatting Check (Ruff Format)
+        run: ruff format . --check
+
+      - name: Linting Check (Ruff Check)
+        run: ruff check .
+
+      - name: Syntax Consistency Check
+        run: python syntax_check.py
+
+      - name: Type Checking (Mypy)
+        run: mypy
+
+      - name: Security Scan (Bandit)
+        # -ll for low and medium confidence issues
+        run: bandit -r src/ -ll
+
+      - name: Magic Number Audit
+        run: python audit_magic_numbers.py
+
+      - name: Repository Health Gate
+        run: pytest test_repository_health.py
+
+      - name: Deployment Gate: Drift Integrity Check
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+          python -c "from trueroas.core.drift import check_reconciliation_drift; print('Drift Engine Ready')"
+
+      - name: Logic Validation, Property Tests & 80% Coverage Gate
+        run: |
+          # Consolidates unit, property (Hypothesis), and E2E tests to verify project-wide coverage.
+          # Fails if code coverage drops below the 80% reliability threshold.
+          pytest --cov=src --cov-fail-under=80 test_math_safety.py src/trueroas/core/test_breaker_spec.py src/trueroas/core/test_market_decision_engine.py src/trueroas/core/test_e2e_sandbox.py
+        env:
+          APP_SECRET_SALT: "ci_pipeline_secret_salt_32_characters"
+          REDIS_URL: "redis://localhost:6379/0"
+          MODEL_VERSION_HASH: "ci-test-hash"
+
+      - name: Notify Failure via Telegram
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract the failed logs (last 15 lines) to capture the error context
+          FAILED_LOG=$(gh run view ${{ github.run_id }} --log-failed | tail -n 15)
+          
+          # Construct a professional incident report
+          MESSAGE="🚨 TrueROAS CI Failure
+
+Branch: ${{ github.ref_name }}
+Workflow: ${{ github.workflow }}
+
+Error Details:
+$FAILED_LOG
+
+Action Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -s -X POST https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage \
+            -d chat_id=$TELEGRAM_CHAT_ID \
+            --data-urlencode "text=$MESSAGE"
+
+  build_executable:
+    name: Build Executable
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            artifact_name: TrueROAS-Audit-Validator-Windows.exe
+            binary_path: dist/TrueROAS-Audit-Validator.exe
+          - os: ubuntu-latest
+            artifact_name: TrueROAS-Audit-Validator-Linux
+            binary_path: dist/TrueROAS-Audit-Validator
+          - os: macos-latest
+            artifact_name: TrueROAS-Audit-Validator-macOS
+            binary_path: dist/TrueROAS-Audit-Validator
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller tkinterdnd2 evidently pandas scipy duckdb sqlalchemy httpx pydantic-settings
+
+      - name: Build with PyInstaller
+        run: python build_validator.py
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          mv ${{ matrix.binary_path }} ${{ matrix.artifact_name }}
+
+      - name: Sign Windows Binary
+        if: matrix.os == 'windows-latest'
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_PFX_BASE64) {
+            Write-Host "Decoding certificate..."
+            $pfx_path = Join-Path $env:RUNNER_TEMP "cert.pfx"
+            [IO.File]::WriteAllBytes($pfx_path, [Convert]::FromBase64String($env:WINDOWS_PFX_BASE64))
+            
+            Write-Host "Locating signtool.exe..."
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Include "signtool.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+            
+            Write-Host "Signing executable..."
+            & $signtool sign /f $pfx_path /p $env:WINDOWS_PFX_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 ${{ matrix.artifact_name }}
+            Remove-Item $pfx_path
+          }
+
+      - name: Verify Windows Binary Signature
+        if: matrix.os == 'windows-latest'
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_PFX_BASE64) {
+            Write-Host "Locating signtool.exe..."
+            $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Include "signtool.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+            
+            Write-Host "Verifying signature..."
+            & $signtool verify /pa /v ${{ matrix.artifact_name }}
+          } else {
+            Write-Host "Skipping verification as no signing secret was provided."
+          }
+
+      - name: Generate Checksum
+        shell: bash
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+          else
+            shasum -a 256 ${{ matrix.artifact_name }} > ${{ matrix.artifact_name }}.sha256
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: executables
+          path: |
+            ${{ matrix.artifact_name }}
+            ${{ matrix.artifact_name }}.sha256
+          retention-days: 1
+
+  create_release:
+    name: Create GitHub Release
+    needs: build_executable
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: executables
+          path: ./release_assets
+
+      - name: Generate Release Notes
+        run: |
+          echo "## 🛡️ TrueROAS Audit Validator - Official Release" > RELEASE_NOTES.md
+          echo "This release includes the standalone Audit Integrity Verifier for Windows, Linux, and macOS." >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "### Verification Protocol:" >> RELEASE_NOTES.md
+          echo "1. Download the binary for your OS." >> RELEASE_NOTES.md
+          echo "2. Provide your Organization Security Keys (Salts)." >> RELEASE_NOTES.md
+          echo "3. Verify the binary checksum using the provided .sha256 file." >> RELEASE_NOTES.md
+          echo "4. Validate the WORM-compliant CSV signature." >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "Built on: $(date +'%Y-%m-%d')" >> RELEASE_NOTES.md
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          files: ./release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

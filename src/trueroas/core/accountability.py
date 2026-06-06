@@ -1,9 +1,11 @@
+from typing import Any, Dict
+
 import duckdb
-from typing import Dict, Any
+
 
 class DecisionAccountabilityEngine:
     """Tracks the accuracy of past recommendations against actual financial outcomes."""
-    
+
     @staticmethod
     def get_track_record(db_path: str) -> Dict[str, Any]:
         """Calculates the historical accuracy of the decision engine."""
@@ -23,6 +25,8 @@ class DecisionAccountabilityEngine:
                 WHERE reconciled_at IS NOT NULL 
                 AND timestamp >= CURRENT_DATE - INTERVAL '90 days'
             """).fetchone()
+            if stats is None:
+                stats = (0, 0, None, None, None, None)
 
             total = stats[0] or 0
             success = stats[1] or 0
@@ -32,12 +36,15 @@ class DecisionAccountabilityEngine:
             mae = round(stats[5], 2) if stats[5] is not None else 0.0
 
             # Trend check: Compare last 90 days vs overall
-            overall_accuracy = con.execute("""
+            overall_accuracy_row = con.execute("""
                 SELECT AVG(CASE WHEN is_successful = TRUE THEN 1.0 ELSE 0.0 END) * 100 
                 FROM decision_audit_trail 
                 WHERE reconciled_at IS NOT NULL
-            """).fetchone()[0] or 0.0
-            
+            """).fetchone()
+            overall_accuracy = (
+                overall_accuracy_row[0] if overall_accuracy_row is not None else 0.0
+            ) or 0.0
+
             # Trend comparison for planning (Today vs Last 30 days)
             trends = con.execute("""
                 SELECT 
@@ -46,6 +53,8 @@ class DecisionAccountabilityEngine:
                 FROM decision_audit_trail
                 WHERE reconciled_7d_at IS NOT NULL
             """).fetchone()
+            if trends is None:
+                trends = (0.0, 0.0)
 
             return {
                 "accuracy_score": accuracy,
@@ -57,8 +66,21 @@ class DecisionAccountabilityEngine:
                 "roas_trend": {
                     "current": round(trends[0] or 0.0, 2),
                     "historical": round(trends[1] or 0.0, 2),
-                    "delta_pct": round(((trends[0] or 0) - (trends[1] or 0)) / (trends[1] or 1) * 100, 1) if trends[1] else 0
+                    "delta_pct": (
+                        round(
+                            ((trends[0] or 0) - (trends[1] or 0))
+                            / (trends[1] or 1)
+                            * 100,
+                            1,
+                        )
+                        if trends[1]
+                        else 0
+                    ),
                 },
-                "trust_label": "High" if accuracy > 75 else "Stable" if accuracy > 60 else "Learning",
-                "status_message": f"Engine has a {accuracy}% accuracy rate based on {total} past scaling outcomes."
+                "trust_label": (
+                    "High"
+                    if accuracy > 75
+                    else "Stable" if accuracy > 60 else "Learning"
+                ),
+                "status_message": f"Engine has a {accuracy}% accuracy rate based on {total} past scaling outcomes.",
             }

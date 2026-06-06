@@ -14,8 +14,9 @@ We enforce strict code quality standards to ensure maintainability and readabili
 TrueROAS is a mission-critical financial audit tool. Every Pull Request must:
 1. Pass the full test suite: `pytest`
 2. Pass the property-based math invariant tests: `pytest tests/property/`
-3. Pass strict type checking: `mypy --strict src/`
-4. Include new tests for any added features or fixed bugs.
+3. Pass the Market Decision Engine logic tests: `pytest src/trueroas/core/test_market_decision_engine.py`
+4. Pass strict type checking: `mypy --strict src/`
+5. Include new tests for any added features or fixed bugs.
 
 ## Commit Message Format
 

@@ -1,87 +1,161 @@
-import hashlib
-import hmac
-import sqlite3
 import os
-import threading
-from abc import ABC, abstractmethod
+import re
+from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
-from typing import Generator
 
-from src.trueroas.core.config import settings
+import duckdb
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    String,
+    create_engine,
+    text,
+)
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-class BaseDatabase(ABC):
-    @abstractmethod
-    def get_connection(self, tenant_id: str): pass
 
-# SQLAlchemy Declarative Base for central metadata
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
-# Central Database for Subscriptions and Global Metadata
-# Uses SQLite for local-first metadata, or PostgreSQL if configured
-CENTRAL_DB_URL = str(settings.POSTGRES_URL) if settings.DATABASE_TYPE == "postgres" else f"sqlite:///{settings.DATA_DIR}/central.db"
 
-engine_args = {"connect_args": {"check_same_thread": False}} if "sqlite" in CENTRAL_DB_URL else {
-    "pool_size": 5,
-    "max_overflow": 10,
-    "pool_recycle": 3600,
-    "pool_pre_ping": True  # Verification of connection health before use
-}
+DatabaseError = Exception
 
-engine = create_engine(CENTRAL_DB_URL, **engine_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Global cache to prevent engine exhaustion
+_engine_cache = {}
 
-def get_db_session() -> Generator[Session, None, None]:
-    """Dependency for providing a database session with automatic cleanup."""
-    db = SessionLocal()
+# Global sessionmaker cache to prevent descriptor leaks
+_session_factories = {}
+
+# Central SessionLocal for core metadata operations (e.g., Tenant management)
+central_engine = create_engine(
+    os.getenv("POSTGRES_URL")
+    if os.getenv("DEPLOYMENT_TYPE") == "CLOUD"
+    else "sqlite:///data/central.db"
+)
+engine = central_engine
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=central_engine)
+
+
+class DatabaseFactory:
+    @staticmethod
+    def get_engine(tenant_id: str, mode: str = "enterprise"):
+        """Handles hybrid DB logic with connection pooling and caching.
+
+        PostgreSQL for Enterprise, SQLite (WAL mode) for Local.
+
+        Args:
+            tenant_id (str): Unique tenant identifier.
+            mode (str): Database mode ('enterprise' or 'local'). Defaults to 'enterprise'.
+
+        Returns:
+            Engine: SQLAlchemy engine instance.
+        """
+        if tenant_id in _engine_cache:
+            return _engine_cache[tenant_id]
+
+        if mode == "enterprise":
+            # Row Level Security (RLS) active in PostgreSQL
+            db_url = os.getenv("POSTGRES_URL")
+            engine = create_engine(
+                db_url,
+                pool_size=10,  # Base pool size
+                max_overflow=20,  # Allow burst connections during BFCM
+                pool_pre_ping=True,  # Verify connection health before use
+            )
+        else:
+            # SQLite: Enhances Write-Ahead Logging (WAL) concurrency
+            # Security: Sanitize tenant_id to prevent path traversal
+            safe_tenant = re.sub(r"[^a-zA-Z0-9_-]", "", tenant_id)
+            db_path = os.path.join("data", "tenants", safe_tenant, "warehouse.db")
+
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            db_url = f"sqlite:///{db_path}"
+            engine = create_engine(db_url, connect_args={"check_same_thread": False})
+
+            # Enable WAL Mode (Resolves locking issues)
+            with engine.begin() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL;"))
+                conn.execute(text("PRAGMA synchronous=NORMAL;"))
+
+        _engine_cache[tenant_id] = engine
+        return engine
+
+
+def get_db_path(tenant_id: str) -> str:
+    """Bridge function for legacy path resolution."""
+    safe_tenant = re.sub(r"[^a-zA-Z0-9_-]", "", tenant_id)
+    return os.path.join("data", "tenants", safe_tenant, "warehouse.duckdb")
+
+
+def hash_identifier(context: str, value: str, salt: str) -> str:
+    """Bridge to security module hashing."""
+    from src.trueroas.core.security import hash_pii
+
+    return hash_pii(context, value, salt)
+
+
+class DBLayerBridge:
+    @staticmethod
+    def get_warehouse_path(tenant_id: str) -> Path:
+        return Path(get_db_path(tenant_id))
+
+    @staticmethod
+    def get_connection(tenant_id: str):
+        return duckdb.connect(str(DBLayerBridge.get_warehouse_path(tenant_id)))
+
+
+db_layer = DBLayerBridge()
+
+
+@contextmanager
+def get_db_session(tenant_id: str = "default"):
+    """Yields a DB session with connection pooling and factory caching.
+
+    Args:
+        tenant_id (str): Unique tenant identifier. Defaults to "default".
+
+    Yields:
+        Session: SQLAlchemy database session.
+    """
+    mode = "enterprise" if os.getenv("DEPLOYMENT_TYPE") == "CLOUD" else "local"
+    engine = DatabaseFactory.get_engine(tenant_id, mode=mode)
+
+    if tenant_id not in _session_factories:
+        _session_factories[tenant_id] = sessionmaker(
+            autocommit=False, autoflush=False, bind=engine
+        )
+
+    session = _session_factories[tenant_id]()
     try:
-        yield db
-    finally:
-        db.close()
+        yield session
+    finally:  # Close session and return to pool
+        session.close()
 
-class SQLiteTenantDatabase(BaseDatabase):
-    def __init__(self):
-        self._local = threading.local()
 
-    def get_warehouse_path(self, tenant_id: str) -> Path:
-        from src.trueroas.services.security import sanitize_tenant_id
-        safe_id = sanitize_tenant_id(tenant_id)
-        # Requirement 1: Each tenant gets a dedicated .db file named {tenant_id}.db in /data/tenants/
-        path = (settings.DATA_DIR / "tenants" / f"{safe_id}.db").resolve()
-        return path
+class DecisionAuditTrail(Base):
+    __tablename__ = "decision_audit_trail"
 
-    def get_connection(self, tenant_id: str):
-        if not hasattr(self._local, 'conns'): self._local.conns = {}
-        if tenant_id not in self._local.conns:
-            db_path = self.get_warehouse_path(tenant_id)
-            # Ensure directory exists and file has restrictive permissions
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            if not db_path.exists():
-                db_path.touch(mode=0o600)
-            
-            # Requirement 4: High timeout parameter prevents "database is locked" errors during 50+ concurrent syncs
-            conn = sqlite3.connect(str(db_path), check_same_thread=False, timeout=30.0)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA synchronous=NORMAL;")
-            # Requirement 2: Ensure automatic WAL checkpointing happens at 1000 pages
-            conn.execute("PRAGMA wal_autocheckpoint=1000;")
-            conn.row_factory = sqlite3.Row
-            self._local.conns[tenant_id] = conn
-        return self._local.conns[tenant_id]
+    decision_id = Column(String(36), primary_key=True)
+    tenant_id = Column(String(64), index=True)
+    campaign_id = Column(String(64))
+    action = Column(String(20))  # SCALE, HOLD, PAUSE
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
-db_layer = SQLiteTenantDatabase()
+    # EU AI Act: Data Lineage Snapshot
+    # Raw data snapshots at the moment of decision
+    input_snapshot = Column(JSON)
 
-def hash_identifier(tenant_id: str, raw_value: str, tenant_secret_salt: str) -> str:
-    """
-    Hashes PII using Keyed BLAKE2b with a combined key:
-    HMAC-SHA256(APP_SECRET_SALT, tenant_secret_salt_from_pg)
-    """
-    if not raw_value: return ""
-    pepper = settings.APP_SECRET_SALT.encode()
-    # Derive per-tenant key using the pepper and the UUID salt from metadata
-    derived_key = hmac.new(pepper, tenant_secret_salt.encode(), hashlib.sha256).digest()
-    return hashlib.blake2b(raw_value.encode(), key=derived_key, digest_size=32).hexdigest()
+    # Output metrics
+    reconciled_roas = Column(Float)
+    confidence_level = Column(Float)
+    expected_value = Column(Float)
+    drift_score_at_time = Column(Float, nullable=True)
 
-def get_db_path(tenant_id: str = "default") -> str:
-    return str(db_layer.get_warehouse_path(tenant_id))
+    # Human-in-the-loop audit
+    approved_by = Column(String(100), nullable=True)
+    is_automated = Column(Boolean, default=True)
+    checksum = Column(String(64))  # Integrity check

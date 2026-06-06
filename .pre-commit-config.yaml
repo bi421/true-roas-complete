@@ -11,7 +11,7 @@ repos:
     hooks:
       - id: mypy
         args: [--strict, --ignore-missing-imports]
-        additional_dependencies: [pydantic, scipy, sqlalchemy, types-requests, redis, python-json-logger]
+        additional_dependencies: [pydantic, scipy, scipy-stubs, sqlalchemy, types-requests, redis, python-json-logger, "numpy<2.0.0"]
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.7

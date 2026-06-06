@@ -10,11 +10,11 @@ from fastapi import APIRouter, Request, Header, status, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.subscriptions import SubscriptionService, PlanType, Subscription, SubscriptionStatus
-from src.trueroas.services.email_service import send_payment_confirmation, send_payment_failure
-from src.trueroas.workers.tasks import sync_meta_data
+from ..core.config import settings
+from ..core.database import get_db_session
+from ..core.subscriptions import SubscriptionService, PlanType, Subscription, SubscriptionStatus
+from ..services.email_service import send_payment_confirmation, send_payment_failure
+from ..workers.tasks import sync_meta_data
 
 logger = logging.getLogger("trueroas.webhooks")
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])

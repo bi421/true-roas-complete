@@ -1,14 +1,16 @@
+from typing import Any, Dict, List
+
 import duckdb
-from typing import Dict, Any, List
+
 
 class DecisionScienceEngine:
     """Calculates model calibration, MAE, and systematic bias."""
-    
+
     @staticmethod
     def analyze_calibration(db_path: str) -> Dict[str, Any]:
         """
-        Analyzes Brier Score and Bias. 
-        Bias: Sum(Actual - Predicted) / N. 
+        Analyzes Brier Score and Bias.
+        Bias: Sum(Actual - Predicted) / N.
         Negative Bias = Model is over-optimistic.
         """
         with duckdb.connect(db_path, read_only=True) as con:
@@ -31,7 +33,9 @@ class DecisionScienceEngine:
                 "mean_absolute_error": round(metrics[1], 2),
                 "bias_index": round(metrics[2], 2),
                 "calibration_brier_score": round(metrics[3], 4),
-                "interpretation": "Over-Optimistic" if metrics[2] < 0 else "Conservative"
+                "interpretation": (
+                    "Over-Optimistic" if metrics[2] < 0 else "Conservative"
+                ),
             }
 
     @staticmethod

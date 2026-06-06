@@ -3,7 +3,7 @@ name: Nightly BRT Audit
 on:
   schedule:
     - cron: '0 2 * * *'  # 2 AM nightly
-  workflow_dispatch:      # Гар аргаар ажиллуулах боломжтой
+  workflow_dispatch:      # Can be run manually
 
 jobs:
   backup-restore-test:
@@ -30,6 +30,17 @@ jobs:
         run: |
           pip install httpx redis
           python scripts/brt_audit.py
+
+      - name: Generate Technical Whitepaper PDF
+        run: |
+          pip install markdown weasyprint
+          python generate_cto_pdf.py
+
+      - name: Upload Technical Whitepaper
+        uses: actions/upload-artifact@v3
+        with:
+          name: TrueROAS-Technical-Whitepaper
+          path: TrueROAS_Technical_Whitepaper.pdf
 
       - name: Trigger PagerDuty on Failure
         if: failure()

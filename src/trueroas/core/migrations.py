@@ -1,14 +1,19 @@
-import duckdb
-import os
 import logging
+import os
 import re
 import shutil
 from datetime import datetime, timedelta
-from logging.handlers import TimedRotatingFileHandler
-from src.trueroas.core.config import settings
+from logging.handlers import TimedRotatingFileHandler  # type: ignore
+
+import duckdb
+from sqlalchemy import create_engine, text
+
+from trueroas.core.config import settings
 
 # Configure log directory and file path (Project Root/data/logs)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 LOG_DIR = os.path.join(BASE_DIR, "data", "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "migrations.log")
@@ -22,7 +27,9 @@ logger.setLevel(logging.INFO)
 
 # Check for existing handlers to prevent duplicate logging.
 if not logger.handlers:
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     # 1. Console handler.
     console_handler = logging.StreamHandler()
@@ -34,13 +41,9 @@ if not logger.handlers:
     # interval=1: Every 1 day.
     # backupCount=30: Keep logs for the last 30 days.
     file_handler = TimedRotatingFileHandler(
-        LOG_FILE,
-        when='D',
-        interval=1,
-        backupCount=30,
-        encoding='utf-8'
+        LOG_FILE, when="D", interval=1, backupCount=30, encoding="utf-8"
     )
-    
+
     # 1. Set date format with '-'.
     file_handler.suffix = "%Y-%m-%d"
     file_handler.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -49,7 +52,7 @@ if not logger.handlers:
     def custom_namer(name):
         dir_path, filename = os.path.split(name)
         if filename.startswith("migrations.log."):
-            date_part = filename.split('.')[-1]
+            date_part = filename.split(".")[-1]
             return os.path.join(dir_path, f"{date_part}_migrations.log")
         return name
 
@@ -143,7 +146,7 @@ MIGRATIONS = [
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (decision_id) REFERENCES decisions(id)
     );
-    """
+    """,
     # Version 7: Financial Compliance Audit Log (Requirement 1 & 2)
     """
     CREATE TABLE IF NOT EXISTS job_audit_log (
@@ -154,21 +157,27 @@ MIGRATIONS = [
         completed_at TIMESTAMP NOT NULL,
         records_processed INTEGER DEFAULT 0,
         checksum VARCHAR(64),
-        operator VARCHAR NOT NULL DEFAULT 'system'
+        operator VARCHAR NOT NULL DEFAULT 'system',
+        metadata_json JSON
     );
-
-    -- Requirement 2: Enforce Append-Only via Triggers (SQLite compatible)
-    CREATE TRIGGER IF NOT EXISTS job_audit_log_no_update
-    BEFORE UPDATE ON job_audit_log
+    """,
+    # Postgres compatible immutability for Version 7
+    """
+    CREATE OR REPLACE FUNCTION block_modification() RETURNS TRIGGER AS $$
     BEGIN
-        SELECT RAISE(FAIL, 'Financial Compliance: UPDATE operations forbidden on audit trail.');
+        RAISE EXCEPTION 'Financial Compliance: Modification of audit trail is forbidden.';
     END;
+    $$ LANGUAGE plpgsql;
 
-    CREATE TRIGGER IF NOT EXISTS job_audit_log_no_delete
-    BEFORE DELETE ON job_audit_log
-    BEGIN
-        SELECT RAISE(FAIL, 'Financial Compliance: DELETE operations forbidden on audit trail.');
-    END;
+    DO $$ BEGIN
+        CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON job_audit_log 
+        FOR EACH ROW EXECUTE FUNCTION block_modification();
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+        CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON job_audit_log 
+        FOR EACH ROW EXECUTE FUNCTION block_modification();
+    EXCEPTION WHEN others THEN NULL; END $$;
     """,
     # Version 8: Backup Registry for BRT Pipeline (Requirement 1.d)
     """
@@ -201,36 +210,53 @@ MIGRATIONS = [
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS consent_ip VARCHAR(45);
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS consent_timestamp TIMESTAMP;
     ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS privacy_policy_version VARCHAR(10);
-
-    -- Hard-delete protection: ensure no rows remain after Hard Purge
-    PRAGMA secure_delete = ON;
     """,
     # Version 10: Immutability Triggers for Decision Audit Trail (Requirement 1.e)
     """
-    CREATE TRIGGER IF NOT EXISTS block_decision_update
-    BEFORE UPDATE ON decision_audit_trail
+    CREATE OR REPLACE FUNCTION block_decision_modification() RETURNS TRIGGER AS $$
     BEGIN
-        SELECT RAISE(FAIL, 'Decision Immutability Violation: Mutation of strategic records is prohibited.');
+        RAISE EXCEPTION 'Decision Immutability Violation: Mutation of strategic records is prohibited.';
     END;
+    $$ LANGUAGE plpgsql;
 
-    CREATE TRIGGER IF NOT EXISTS block_decision_delete
-    BEFORE DELETE ON decision_audit_trail
-    BEGIN
-        SELECT RAISE(FAIL, 'Decision Immutability Violation: Deletion of strategic records is prohibited.');
-    END;
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'block_decision_update') THEN
+            CREATE TRIGGER block_decision_update BEFORE UPDATE ON decision_audit_trail 
+            FOR EACH ROW EXECUTE FUNCTION block_decision_modification();
+        END IF;
+    END $$;
+
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'block_decision_delete') THEN
+            CREATE TRIGGER block_decision_delete BEFORE DELETE ON decision_audit_trail 
+            FOR EACH ROW EXECUTE FUNCTION block_decision_modification();
+        END IF;
+    END $$;
+    """,
+    # Version 11: Compliance and Opt-in updates
     """
+    -- Requirement 1: User Opt-in for Auto-Pause Guardrails
+    ALTER TABLE tenants ADD COLUMN IF NOT EXISTS auto_pause_enabled BOOLEAN DEFAULT FALSE;
+
+    -- Requirement 2: Separation of Platform Data for 120-day retention
+    -- We tag historical_metrics to allow auto-cleanup of raw platform insights
+    -- while preserving calculated Decision Audit logs.
+    ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS is_platform_data BOOLEAN DEFAULT TRUE;
+    ALTER TABLE decision_audit_trail ADD COLUMN IF NOT EXISTS is_platform_data BOOLEAN DEFAULT FALSE;
+    """,
 ]
 
+
 def cleanup_old_logs():
-    """Archive logs and purge archives older than 90 days."""
+    """Archives old logs and purges archives exceeding the 90-day retention limit."""
     try:
         # Filter for YYYY-MM-DD_migrations.log files.
         pattern = r"^\d{4}-\d{2}-\d{2}_migrations\.log$"
         log_files = [f for f in os.listdir(LOG_DIR) if re.match(pattern, f)]
-        
+
         # Sort by date (newest first).
         log_files.sort(reverse=True)
-        
+
         backup_limit = settings.LOG_BACKUP_COUNT
         # Archive files exceeding backupCount.
         if len(log_files) > backup_limit:
@@ -238,87 +264,166 @@ def cleanup_old_logs():
                 src_path = os.path.join(LOG_DIR, file_to_archive)
                 dst_path = os.path.join(ARCHIVE_DIR, file_to_archive)
                 shutil.move(src_path, dst_path)
-                logger.info(f"Archive: Moved old log file to archive: {file_to_archive}")
+                logger.info(
+                    f"Archive: Moved old log file to archive: {file_to_archive}"
+                )
 
         # --- Purge archives. ---
         retention_limit = datetime.now() - timedelta(days=settings.LOG_RETENTION_DAYS)
         archive_pattern = r"^(\d{4}-\d{2}-\d{2})_migrations\.log$"
-        
+
         for archived_file in os.listdir(ARCHIVE_DIR):
             match = re.match(archive_pattern, archived_file)
             if match:
                 file_date_str = match.group(1)
                 file_date = datetime.strptime(file_date_str, "%Y-%m-%d")
-                
+
                 if file_date < retention_limit:
                     os.remove(os.path.join(ARCHIVE_DIR, archived_file))
-                    logger.info(f"Purge: Deleted archived log older than 90 days: {archived_file}")
+                    logger.info(
+                        f"Purge: Deleted archived log older than 90 days: {archived_file}"
+                    )
 
     except Exception as e:
         logger.error(f"Cleanup failed: {e}")
 
-def archive_old_audit_logs(db_path: str, tenant_id: str):
-    """
-    Requirement 5: Archival to cold storage after 1 year.
-    In production, this moves rows to an archive table or external object store.
-    """
-    archive_limit = datetime.now() - timedelta(days=365)
-    retention_limit = datetime.now() - timedelta(days=7*365)
-    
-    with duckdb.connect(db_path) as con:
-        # 1. Purge data older than 7 years (Hard retention policy)
-        # Note: Triggers must be temporarily disabled or logic moved to an archive-aware layer
-        # for actual deletion if triggers are active.
-        con.execute("DELETE FROM job_audit_log WHERE started_at < ?", [retention_limit])
-        
-        # 2. Archive data older than 1 year
-        # Mock: Moving to a local archive file for this implementation
-        archive_path = os.path.join(os.path.dirname(db_path), f"{tenant_id}_audit_archive_1y.csv")
-        con.execute(f"""
-            COPY (SELECT * FROM job_audit_log WHERE started_at < ?) 
-            TO '{archive_path}' (HEADER, DELIMITER ',');
-        """, [archive_limit])
-        
-        # For the purpose of this audit, we assume cold storage archival is successful
-        logger.info(f"Audit Archival: Processed 1-year cold storage sync for {tenant_id}")
 
-def apply_migrations(db_path: str):
-    """Upgrade tenant database to the latest schema version."""
-    tenant_id = os.path.basename(os.path.dirname(db_path))
-    with duckdb.connect(db_path) as con:
-        # Ensure base directories exist for standard SQLite/DuckDB error prevention on Windows
+def archive_old_audit_logs(tenant_id: str):
+    """Archives old audit logs to cold storage for a specific tenant.
+
+    In production, this moves rows to an archive table or external object store.
+
+    Args:
+        tenant_id (str): Unique tenant identifier.
+    """
+    schema_name = f"tenant_{tenant_id.replace('-', '_')}"
+    archive_limit = datetime.now() - timedelta(days=365)
+
+    engine = create_engine(str(settings.POSTGRES_URL))
+    with engine.begin() as con:
+        con.execute(text(f"SET search_path TO {schema_name}"))
+        # In a real production environment, this would involve moving data to a separate archive table
+        # or an external object storage (e.g., S3).
+        # The current Postgres triggers prevent direct deletion from job_audit_log.
+        logger.info(
+            f"Audit Archival: Simulation for cold storage archival for tenant schema: {schema_name}"
+        )
+
+
+def apply_migrations(tenant_id: str):
+    """Upgrades a tenant's schema to the latest version in PostgreSQL.
+
+    Args:
+        tenant_id (str): Unique tenant identifier.
+    """
+    if tenant_id.endswith(".duckdb") or settings.POSTGRES_URL is None:
+        db_path = tenant_id if tenant_id.endswith(".duckdb") else f"{tenant_id}.duckdb"
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        
+        with duckdb.connect(db_path) as con:
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+            )
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    id VARCHAR PRIMARY KEY,
+                    platform VARCHAR,
+                    amount DOUBLE,
+                    currency VARCHAR,
+                    created_at TIMESTAMP,
+                    meta JSON
+                )
+            """)
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS historical_metrics (
+                    account_id VARCHAR,
+                    order_id VARCHAR,
+                    clean_date DATE,
+                    normalized_spend DOUBLE,
+                    meta_roas DOUBLE,
+                    true_revenue DOUBLE DEFAULT 0,
+                    true_roas DOUBLE DEFAULT 0,
+                    true_cac DOUBLE DEFAULT 0
+                )
+            """)
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS decision_audit_trail (
+                    decision_id VARCHAR PRIMARY KEY,
+                    tenant_id VARCHAR,
+                    campaign_id VARCHAR,
+                    action VARCHAR,
+                    timestamp TIMESTAMP,
+                    expected_roas DOUBLE,
+                    confidence_level DOUBLE,
+                    user_id VARCHAR,
+                    actual_roas_7d DOUBLE,
+                    actual_roas_30d DOUBLE,
+                    actual_roas_90d DOUBLE,
+                    is_accurate_7d BOOLEAN,
+                    is_accurate_30d BOOLEAN,
+                    is_accurate_90d BOOLEAN,
+                    accuracy_ratio_7d DOUBLE,
+                    accuracy_ratio_30d DOUBLE,
+                    accuracy_ratio_90d DOUBLE,
+                    reconciled_7d_at TIMESTAMP,
+                    reconciled_30d_at TIMESTAMP,
+                    reconciled_90d_at TIMESTAMP,
+                    expected_value DOUBLE DEFAULT 0,
+                    approved_by VARCHAR,
+                    is_automated BOOLEAN DEFAULT TRUE,
+                    assumptions_json JSON
+                )
+            """)
+            con.execute("INSERT OR IGNORE INTO _migrations (version) VALUES (1)")
+        return
+
+    schema_name = f"tenant_{tenant_id.replace('-', '_')}"
+
+    engine = create_engine(str(settings.POSTGRES_URL))
+    with engine.begin() as con:
+        # Create schema if it doesn't exist
+        con.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+        # Set search path to the tenant's schema for the current session
+        con.execute(text(f"SET search_path TO {schema_name}"))
+
         # Create migration history table.
-        con.execute("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-        
+        con.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+            )
+        )
+
         # Get current version.
-        current_version_row = con.execute("SELECT MAX(version) FROM _migrations").fetchone()
-        current_version = current_version_row[0] if current_version_row[0] is not None else 0
-        
+        current_version_row = con.execute(
+            text("SELECT MAX(version) FROM _migrations")
+        ).fetchone()
+        current_version = (
+            current_version_row[0]
+            if current_version_row is not None and current_version_row[0] is not None
+            else 0
+        )
+
         # Apply pending migrations.
         for i, sql in enumerate(MIGRATIONS):
             version_number = i + 1
             if version_number > current_version:
                 try:
-                    # 1. Start Transaction: Atomic schema change and version logging.
-                    con.execute("BEGIN TRANSACTION")
-                    con.execute(sql)
-                    con.execute("INSERT INTO _migrations (version) VALUES (?)", [version_number])
-                    con.execute("COMMIT")
-                    logger.info(f"Migration v{version_number} applied successfully to tenant: {tenant_id}")
+                    con.execute(text(sql))
+                    con.execute(
+                        text("INSERT INTO _migrations (version) VALUES (:v)"),
+                        {"v": version_number},
+                    )
+                    logger.info(
+                        f"Migration v{version_number} applied successfully to schema: {schema_name}"
+                    )
                 except Exception as e:
-                    # 2. Rollback on error: Revert changes made in the current version.
-                    con.execute("ROLLBACK")
-                    logger.error(f"FATAL: Migration v{version_number} failed for tenant: {tenant_id}. Error: {e}")
+                    logger.error(
+                        f"FATAL: Migration v{version_number} failed for schema {schema_name}. Error: {e}"
+                    )
                     # Halt migrations if one fails.
                     break
 
+
 def run_migrations():
-    """CLI Entry point to initialize the default tenant database."""
-    # This replicates the logic found in main.get_db_path for the default user.
-    tenant_dir = os.path.join(BASE_DIR, "data", "tenants", "default")
-    os.makedirs(tenant_dir, exist_ok=True)
-    db_path = os.path.join(tenant_dir, "warehouse.duckdb")
-    apply_migrations(db_path)
-    print(f"SUCCESS: Tenant 'default' initialized at {db_path}")
+    """CLI Entry point to initialize the default tenant schema."""
+    apply_migrations("default")
+    print("SUCCESS: Tenant 'default' schema initialized.")

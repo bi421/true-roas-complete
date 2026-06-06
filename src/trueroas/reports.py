@@ -2,19 +2,21 @@ import time
 from fastapi import APIRouter, Header, status
 from fastapi.responses import JSONResponse
 from celery.result import AsyncResult
-from src.trueroas.workers.tasks import celery_app, generate_pdf_report
+from src.trueroas.workers.tasks import celery_app, generate_pdf_report_task
+from src.trueroas.auth import get_current_tenant
+from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
 @router.post("/pdf", status_code=status.HTTP_202_ACCEPTED)
-async def generate_audit_report(x_tenant_id: str = Header("default")):
+async def generate_audit_report(tenant_id: str = Depends(get_current_tenant)):
     """
     Queues an async audit report generation.
     """
     # Simulated data aggregation for the audit report.
     # In production, this would pull from DuckDB analytics.
     report_data = {
-        "tenant_id": x_tenant_id,
+        "tenant_id": tenant_id,
         "timestamp": str(time.time()),
         "summary": {
             "meta_roas": 4.2,
@@ -23,7 +25,7 @@ async def generate_audit_report(x_tenant_id: str = Header("default")):
         }
     }
 
-    task = generate_pdf_report.delay(x_tenant_id, report_data)
+    task = generate_pdf_report_task.delay(tenant_id, report_data)
 
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,

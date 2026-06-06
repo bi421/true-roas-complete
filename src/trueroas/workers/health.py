@@ -1,7 +1,9 @@
 from fastapi import APIRouter
+
 from src.trueroas.core.config import settings
 
 router = APIRouter(tags=["System"])
+
 
 @router.get("/health")
 async def health():

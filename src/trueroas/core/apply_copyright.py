@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 # Copyright header configuration
@@ -14,6 +13,7 @@ HEADERS = {
 
 IGNORE_DIRS = {".git", "__pycache__", "venv", "node_modules", "data"}
 
+
 def apply_copyright(root_dir: Path):
     """
     Recursively applies the copyright header to all supported source files.
@@ -21,7 +21,7 @@ def apply_copyright(root_dir: Path):
     applied_count = 0
     skipped_count = 0
 
-    for path in root_dir.rglob('*'):
+    for path in root_dir.rglob("*"):
         # Skip directories and ignored paths
         if path.is_dir() or any(part in IGNORE_DIRS for part in path.parts):
             continue
@@ -31,10 +31,10 @@ def apply_copyright(root_dir: Path):
             continue
 
         header = HEADERS[path.suffix]
-        
+
         try:
-            content = path.read_text(encoding='utf-8')
-            
+            content = path.read_text(encoding="utf-8")
+
             # Check if header already exists
             if COPYRIGHT_TEXT in content:
                 print(f"[-] Already exists, skipping: {path.relative_to(root_dir)}")
@@ -51,21 +51,22 @@ def apply_copyright(root_dir: Path):
             else:
                 new_content = header + content
 
-            path.write_text(new_content, encoding='utf-8')
+            path.write_text(new_content, encoding="utf-8")
             print(f"[+] Applied header to: {path.relative_to(root_dir)}")
             applied_count += 1
 
         except Exception as e:
             print(f"[!] Error processing {path}: {e}")
 
-    print(f"\n--- Process Complete ---")
+    print("\n--- Process Complete ---")
     print(f"Headers applied: {applied_count}")
     print(f"Files skipped: {skipped_count}")
+
 
 if __name__ == "__main__":
     # Locate the project root (assuming the script is in /scripts directory)
     current_dir = Path(__file__).parent
     project_root = current_dir.parent
-    
+
     print(f"Starting copyright application in: {project_root}\n")
     apply_copyright(project_root)

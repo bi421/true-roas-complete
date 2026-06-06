@@ -8,14 +8,13 @@ This document details the production-grade file tree and technology stack for th
 ## 1. Project Structure
 
 ```text
-src/trueroas/
-├── main.py                 # FastAPI server, exception handlers, middleware
+src/trueroas/               # Root of the application logic
+├── main.py                 # FastAPI application entry point
 ├── api/
-│   ├── dependencies.py     # DB session, auth, tenant resolution
-│   ├── landing.py          # Landing page router
-│   ├── limiter.py          # Rate limiting config
+│   ├── dependencies.py     # Auth & Tenant resolution
+│   ├── limiter.py          # API Rate limiting
 │   └── routes/
-│       ├── health.py       # System health & heartbeats
+│       ├── health.py       # Heartbeats & Readiness
 │       ├── sync.py         # Data ingest triggers & task polling
 │       ├── analysis.py     # Metrics & audit snapshots
 │       ├── reports.py      # PDF report status & downloads
@@ -25,7 +24,8 @@ src/trueroas/
 │   ├── database.py         # SQLite/Postgres abstraction, tenant isolation
 │   ├── migrations.py       # Tenant-specific schema versioning
 │   ├── inference.py        # Bayesian + Bootstrap statistical core
-│   └── decision_intelligence.py # Scored multi-constraint diagnostics
+│   ├── decision_intelligence.py # Decision engine logic
+│   └── constants.py        # Centralized business logic constants
 ├── services/
 │   ├── pdf_service.py      # Async PDF generation using WeasyPrint
 │   └── security.py         # Path validation & per-tenant PII hashing

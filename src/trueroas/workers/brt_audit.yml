@@ -3,7 +3,7 @@ name: Nightly BRT Quality Gate
 on:
   schedule:
     - cron: '0 2 * * *'  # 2 AM nightly
-  workflow_dispatch:      # Гар аргаар ажиллуулах боломжтой
+  workflow_dispatch:      # Manual trigger enabled
 
 jobs:
   backup-restore-test:

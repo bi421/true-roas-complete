@@ -20,12 +20,12 @@ def test_shopify_signature_verification():
 def test_subscription_db_initialization():
     """Ensures central DB models are correctly mapped."""
     from src.trueroas.core.database import SessionLocal
-    from src.trueroas.core.subscriptions import Subscription
+    from src.trueroas.core.subscriptions import Tenant
     
     db = SessionLocal()
     try:
         # Test query to ensure table exists
-        count = db.query(Subscription).count()
+        count = db.query(Tenant).count()
         assert isinstance(count, int)
     finally:
         db.close()

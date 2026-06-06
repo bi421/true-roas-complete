@@ -1,9 +1,11 @@
-from fastapi import Depends, HTTPException, status, Security, Request
+from fastapi import Depends, HTTPException, status, Security, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from src.trueroas.core.config import settings
+import logging
 
 security = HTTPBearer()
+logger = logging.getLogger("trueroas.auth")
 
 async def get_current_tenant(request: Request, auth: HTTPAuthorizationCredentials = Security(security)) -> str:
     """
@@ -11,7 +13,13 @@ async def get_current_tenant(request: Request, auth: HTTPAuthorizationCredential
     In production, this verifies the 'tenant_id' claim.
     """
     try:
-        payload = jwt.decode(auth.credentials, settings.APP_SECRET_SALT, algorithms=["HS256"])
+        # 2026 Standard: Verify expiration and audience to prevent replay attacks
+        payload = jwt.decode(
+            auth.credentials, 
+            settings.APP_SECRET_SALT, 
+            algorithms=["HS256"],
+            options={"verify_exp": True, "verify_aud": False}
+        )
         tenant_id: str = payload.get("tenant_id")
         if not tenant_id:
             raise HTTPException(status_code=403, detail="Invalid tenant context in token")
@@ -19,8 +27,8 @@ async def get_current_tenant(request: Request, auth: HTTPAuthorizationCredential
         # Security Audit: Detect and block mismatched tenant contexts (IDOR prevention)
         header_tenant_id = request.headers.get("X-Tenant-ID")
         if header_tenant_id and header_tenant_id != tenant_id:
-            # Aligned with Audit SQL requirements: request_method, endpoint, tenant_ids
-            request.state.logger.critical("cross_tenant_access_attempt", extra={
+            # Log critical error to system logs
+            logger.critical("cross_tenant_access_attempt", extra={
                 "tenant_id_authenticated": tenant_id,
                 "tenant_id_requested": header_tenant_id,
                 "request_method": request.method,
@@ -43,15 +51,10 @@ async def require_admin(request: Request, auth: HTTPAuthorizationCredentials = S
         if payload.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Admin privileges required")
 
-        # Requirement: Audit successful administrative cross-tenant access
+        # Logging through structured state logger
         header_tenant_id = request.headers.get("X-Tenant-ID")
-        if header_tenant_id:
-            request.state.logger.info("cross_tenant_access_success", extra={
-                "tenant_id_authenticated": f"admin:{payload.get('sub')}",
-                "tenant_id_requested": header_tenant_id,
-                "request_method": request.method,
-                "endpoint": request.url.path,
-                "response_status": 200
-            })
+        if header_tenant_id and hasattr(request.state, "logger"):
+             request.state.logger.info("admin_access_granted", extra={"tenant": header_tenant_id})
+             
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid credentials")

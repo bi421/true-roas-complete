@@ -3,28 +3,37 @@ Subscription management for TrueROAS.
 Handles plan activation, status tracking, and lifecycle events.
 """
 
+import uuid
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, List
-import uuid
 
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, String, Integer, func, Index
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, String, Integer, func, Index, Boolean
 from sqlalchemy.orm import Session
 import secrets
 
-from src.trueroas.core.database import Base
-
-
-class SubscriptionTier(str, Enum):
-    CORE = "core"              # $79/month
-    ACCOUNTABILITY = "accountability"  # $199/month
-
+from .database import Base
 
 class TenantStatus(str, Enum):
+    PENDING = "pending"
     ACTIVE = "active"
     SUSPENDED = "suspended"
-    PENDING = "pending"
+    DELETED = "deleted"
 
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    TRIALING = "trialing"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    INCOMPLETE = "incomplete"
+    INCOMPLETE_EXPIRED = "incomplete_expired"
+
+class SubscriptionTier(str, Enum):
+    FREE = "FREE"
+    STARTER = "STARTER"
+    PRO = "PRO"
+    ENTERPRISE = "ENTERPRISE"
+    CORE = "CORE"
 
 class Tenant(Base):
     """
@@ -38,12 +47,18 @@ class Tenant(Base):
     slug = Column(String(64), nullable=False, unique=True, index=True)
     sqlite_path = Column(String(1024), nullable=False) # Validated absolute path
     tenant_secret_salt = Column(String(64), nullable=False)
+    mfa_secret = Column(String(255), nullable=True) # Encrypted TOTP secret
     stripe_customer_id = Column(String(255), nullable=True, unique=True, index=True)
     stripe_subscription_id = Column(String(255), nullable=True, unique=True)
     status = Column(SQLEnum(TenantStatus), default=TenantStatus.PENDING, nullable=False)
     subscription_tier = Column(SQLEnum(SubscriptionTier), nullable=False)
+    do_not_track = Column(Boolean, default=False, nullable=False)
     current_period_start = Column(DateTime, nullable=True)
     current_period_end = Column(DateTime, nullable=True)
+    
+    # Compliance: Opt-in for automated campaign management (ads_management permission)
+    auto_pause_enabled = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     canceled_at = Column(DateTime, nullable=True)
@@ -87,6 +102,8 @@ class SubscriptionService:
             existing.status = TenantStatus.PENDING
             existing.subscription_tier = plan_type
             existing.stripe_customer_id = stripe_customer_id
+
+
             existing.canceled_at = None
             db.commit()
             return existing
