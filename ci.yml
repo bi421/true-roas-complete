@@ -43,7 +43,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mypy pytest pytest-order pytest-cov hypothesis scipy scipy-stubs duckdb pydantic-settings redis httpx sqlalchemy pyjwt "numpy<2.0.0" resend slowapi uvicorn stripe jinja2 evidently pandas cachetools ruff bandit
+          pip install -r requirements.txt
+          pip install mypy pytest pytest-order pytest-cov hypothesis scipy-stubs ruff bandit
 
       - name: Code Formatting Check (Ruff Format)
         run: ruff format . --check
