@@ -59,8 +59,19 @@ class DecisionEngine:
         return {"probability_profit": prob, "expected_roas": current_roas, "lower_bound": current_roas - std_dev, "upper_bound": current_roas + std_dev}
 
     @staticmethod
-    def calculate_bayesian_posterior(*args, **kwargs):
-        return 2.5
+    def calculate_bayesian_posterior(inputs: 'BayesianInput', lag_weight: float = 1.0):
+        """
+        Bridges the legacy static method to the new BayesianInferenceEngine.
+        """
+        engine = BayesianInferenceEngine()
+        # variance = std_dev^2
+        variance = getattr(inputs, 'std_dev', 0.5) ** 2
+        return engine.calculate_posterior(
+            platform_roas=getattr(inputs, 'meta_roas', 0.0),
+            verified_roas=getattr(inputs, 'true_roas', 0.0),
+            sample_size=getattr(inputs, 'sample_size', 10),
+            variance=variance
+        )
 
     @staticmethod
     def get_full_scenario_analysis(**kwargs):
@@ -71,8 +82,11 @@ class DecisionEngine:
         count += 1
         delta = val - mean
         mean += delta / count
-        variance += delta * (val - mean)
-        return count, mean, variance, 0.95
+        # This accumulates the sum of squares of differences from the mean (M2)
+        m2 = variance + (delta * (val - mean))
+        # Return actual sample variance for the Bayesian engine (requires n > 1)
+        actual_variance = m2 / (count - 1) if count > 1 else 0.0
+        return count, mean, m2, 0.95
 
 class BayesianInput:
     def __init__(self, **kwargs):

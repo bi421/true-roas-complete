@@ -89,6 +89,13 @@ TrueROAS uses a **Hybrid Multi-Tenant Architecture** to support both Enterprise 
 - **Path Security:** Tenant IDs are sanitized to prevent directory traversal attacks.
 
 ---
+## 2.3 WORM-Compliant Audit Trail
+All strategic decisions (Scales, Pauses) are recorded in an immutable `decision_audit_trail`. 
+1. **Immutability:** PostgreSQL triggers prevent UPDATE/DELETE on audit tables.
+2. **Digital Signatures:** Each record carries an HMAC-SHA256 checksum signed by the `APP_SECRET_SALT`.
+3. **Verification:** The `brt_audit.py` utility verifies the integrity of the entire database vs. these signatures during nightly restore tests.
+
+---
 ## 2.2 Technical Enforcement of Local Execution Mandate
 For Enterprise deployments, the platform's "Local-First" promise is technically enforced through four primary architectural constraints:
 

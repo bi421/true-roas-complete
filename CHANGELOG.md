@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0] - 2026-06-04 - Production Integrity Release
+### Infrastructure
+- **API Hardening:** Converted all mock endpoints in `main.py` to production task-runners.
+- **CFO Dashboard:** Finalized Bayesian P10 calculation using dynamic standard deviation via SciPy.
+- **CAPI Resilience:** Implemented `event_id` deduplication in CSV exports to prevent Meta double-counting.
+- **Observability:** Integrated structured JSON logging across the Celery worker pool for SOC2 traceability.
+
 ## [1.2.0] - 2026-06-03 - Strategic Pivot: Decision Accountability
 ### Positioning
 - **Category Creation:** Re-positioned TrueROAS from a "Marketing Audit" tool to a **"Decision Accountability Platform"**.

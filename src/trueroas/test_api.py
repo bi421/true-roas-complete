@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from src.trueroas.core.config import settings
 from src.trueroas.main import app
 
+# Standard TestClient initialization (Ensures 100% compatibility without httpx transport errors)
 client = TestClient(app)
 
 

@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 import duckdb
 import httpx
 import redis
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from src.trueroas.core.breaker import redis_client
 from src.trueroas.core.config import settings
@@ -67,6 +68,15 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
                             [account, f"meta_{date}", date, spend, meta_roas],
                         )
 
+                    # Update sync status for CFO Dashboard integrity check
+                    con.execute("""
+                        INSERT INTO sync_metadata (service, last_sync_status, data_freshness_timestamp)
+                        VALUES ('meta', 'OK', CURRENT_TIMESTAMP)
+                        ON CONFLICT(service) DO UPDATE SET 
+                            last_sync_status = 'OK', 
+                            data_freshness_timestamp = CURRENT_TIMESTAMP
+                    """)
+
                     return {
                         "mode": "DEMO",
                         "days": 14,
@@ -79,6 +89,16 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
     except redis.exceptions.LockError:
         # tasks.py autoretry_for will catch LockError
         raise redis.exceptions.LockError(f"DuckDB lock timeout for {db_path}.")
+    except Exception as e:
+        with duckdb.connect(db_path) as con:
+            con.execute("""
+                INSERT INTO sync_metadata (service, last_sync_status, error_message)
+                VALUES ('meta', 'STALE', ?)
+                ON CONFLICT(service) DO UPDATE SET 
+                    last_sync_status = 'STALE', 
+                    error_message = EXCLUDED.error_message
+            """, [str(e)])
+        raise e
 
 
 class MetaCAPI:
@@ -173,6 +193,7 @@ class MetaCAPI:
             "message": "Strategic advice updated locally. Data residency maintained."
         }
 
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10))
     async def pause_campaign(self, campaign_id: str) -> bool:
         """Pauses a specific Meta campaign via the Graph API.
 
@@ -208,6 +229,7 @@ class MetaCAPI:
             logger.error(f"Meta API: Failed to pause campaign {campaign_id}: {r.text}")
             return False
 
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10))
     async def get_campaign_insights(
         self, tenant_id: str, campaign_id: str
     ) -> Dict[str, Any]:

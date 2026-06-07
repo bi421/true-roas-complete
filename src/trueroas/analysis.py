@@ -2,7 +2,8 @@ import json
 from typing import Any, Dict, List
 
 import duckdb
-from fastapi import APIRouter, Depends, HTTPException, Request
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel, Field
 
 from src.trueroas.core.accountability import DecisionAccountabilityEngine
@@ -33,6 +34,7 @@ class MetricsResponse(BaseModel):
     attribution_variance: float = Field(
         default=0.0, description="Delta between platform and truth"
     )
+    daily_trends: List[Dict[str, Any]] = Field(default_factory=list)
     historical_comparison: Dict[str, Any]
     next_cycle_plan: List[str]
     message: str
@@ -41,7 +43,10 @@ class MetricsResponse(BaseModel):
 @router.get("/metrics", response_model=MetricsResponse)
 @limiter.limit(settings.RATE_LIMIT_METRICS)
 async def get_metrics(
-    request: Request, tenant_id: str = Depends(get_current_tenant)
+    request: Request, 
+    tenant_id: str = Depends(get_current_tenant),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None)
 ) -> MetricsResponse:
     """
     Fetch current performance metrics and truth data.
@@ -106,6 +111,34 @@ async def get_metrics(
                 trend_delta=track_record["roas_trend"]["delta_pct"],
             )
 
+            # Phase 4: Longitudinal Drift & Daily Trends
+            date_filter = ""
+            params = []
+            if start_date:
+                date_filter += " AND clean_date >= ?"
+                params.append(start_date)
+            if end_date:
+                date_filter += " AND clean_date <= ?"
+                params.append(end_date)
+
+            trend_query = f"""
+                SELECT clean_date, true_roas, meta_roas, (meta_roas - true_roas) * normalized_spend as bleed
+                FROM historical_metrics
+                WHERE 1=1 {date_filter}
+                ORDER BY clean_date ASC
+            """
+            trends = con.execute(trend_query, params).fetchall()
+            
+            # Format for frontend chart consumption
+            daily_trends = []
+            for r in trends:
+                daily_trends.append({
+                    "date": r[0].strftime("%Y-%m-%d"),
+                    "true_roas": float(round(r[1], 2)),
+                    "meta_roas": float(round(r[2], 2)),
+                    "capital_bleed_usd": float(round(r[3], 2))
+                })
+
             # In production, these values are derived from the Bayesian Posterior stored in historical_metrics
             metrics = {
                 "tenant": tenant_id,
@@ -118,6 +151,7 @@ async def get_metrics(
                 "decision_accuracy_90d": round(acc_row[2] or 0.0, 2),
                 "integrity_score": 94.0,
                 "attribution_variance": 0.33,
+                "daily_trends": daily_trends,
                 "historical_comparison": track_record["roas_trend"],
                 "next_cycle_plan": planning,
                 "message": verdict,

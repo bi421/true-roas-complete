@@ -244,6 +244,15 @@ MIGRATIONS = [
     ALTER TABLE historical_metrics ADD COLUMN IF NOT EXISTS is_platform_data BOOLEAN DEFAULT TRUE;
     ALTER TABLE decision_audit_trail ADD COLUMN IF NOT EXISTS is_platform_data BOOLEAN DEFAULT FALSE;
     """,
+    # Version 12: Sync Resilience Tracking (Requirement 3.c)
+    """
+    CREATE TABLE IF NOT EXISTS sync_metadata (
+        service VARCHAR PRIMARY KEY,
+        last_sync_status VARCHAR DEFAULT 'OK',
+        data_freshness_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        error_message TEXT
+    );
+    """,
 ]
 
 

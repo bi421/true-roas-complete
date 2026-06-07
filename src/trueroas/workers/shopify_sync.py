@@ -63,6 +63,14 @@ def sync_shopify(db_path: str) -> Dict[str, int]:
                 [total_revenue, true_roas, true_cac, count, var, conf, date],
             )
 
+        con.execute("""
+            INSERT INTO sync_metadata (service, last_sync_status, data_freshness_timestamp)
+            VALUES ('shopify', 'OK', CURRENT_TIMESTAMP)
+            ON CONFLICT(service) DO UPDATE SET 
+                last_sync_status = 'OK', 
+                data_freshness_timestamp = CURRENT_TIMESTAMP
+        """)
+
         return {"synced": len(rows)}
 
 

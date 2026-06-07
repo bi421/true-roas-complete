@@ -1,5 +1,10 @@
 # 📖 TrueROAS v2.1 Operational Runbook
 
+## Daily Health Check
+1. Verify `celery_queue_depth` in Grafana is < 50.
+2. Check `last_sync_status` in `sync_metadata` table: `SELECT * FROM sync_metadata WHERE last_sync_status != 'OK';`
+3. Ensure `brt_audit.py` manifest shows `Verified` status from the previous night.
+
 ## Failure Scenarios & Recovery
 
 ### 1. PostgreSQL Connection Pool Exhaustion
