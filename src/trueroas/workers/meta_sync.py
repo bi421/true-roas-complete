@@ -270,7 +270,7 @@ class MetaCAPI:
             try:
                 redis_client.set(cache_key, json.dumps(raw_data), ex=86400)  # 24h TTL
             except Exception as e:
-                print(f"Failed to cache raw Meta response: {e}")
+                logger.error(f"Failed to cache raw Meta response: {e}")
 
             return raw_data
 

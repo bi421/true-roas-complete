@@ -1,11 +1,12 @@
 import jwt
 from fastapi.testclient import TestClient
+from httpx import ASGITransport
 
 from src.trueroas.core.config import settings
 from src.trueroas.main import app
 
-# Standard TestClient initialization (Ensures 100% compatibility without httpx transport errors)
-client = TestClient(app)
+# Standard TestClient initialization (Explicit transport style to resolve httpx DeprecationWarnings)
+client = TestClient(app, transport=ASGITransport(app=app))
 
 
 def generate_token(tenant_id: str, role: str = "user"):

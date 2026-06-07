@@ -19,6 +19,7 @@ from duckdb import Error as DuckDBError
 from prometheus_client import Counter, Gauge, Histogram
 from pythonjsonlogger import jsonlogger
 
+from src.trueroas.core.breaker import AdSpendBreaker
 from src.trueroas.core.config import settings
 from src.trueroas.core.email_service import send_email, render_template
 
@@ -239,6 +240,7 @@ def sync_meta_data(
         # State Law compliance check: Use context manager to prevent pool exhaustion
         with SessionLocal() as central_db:
             tenant = central_db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+            auto_pause_enabled = tenant.auto_pause_enabled if tenant else False
             dnt_active = tenant.do_not_track if tenant else False
 
         task_logger.info(

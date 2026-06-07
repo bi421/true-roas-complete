@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime, timezone
-from fastapi import FastAPI, Header
+import duckdb
+from scipy.stats import norm
+from fastapi import FastAPI, Header, HTTPException
 from src.trueroas.core.config import settings
 from src.trueroas.core.database import get_db_path
 from src.trueroas.workers.tasks import sync_meta_data
@@ -86,10 +88,8 @@ async def get_metrics(x_tenant_id: str = Header(default="default", alias="X-Tena
 @app.get("/api/v1/cfo/dashboard")
 async def get_cfo_dashboard(x_tenant_id: str = Header(default="default", alias="X-Tenant-ID")):
     """CFO-First API Abstraction: Actionable strategic overview."""
-    import duckdb
-    from scipy.stats import norm
     from src.trueroas.core.business_translator import translate_to_business_action
-    
+
     db_path = get_db_path(x_tenant_id)
     
     try:
@@ -103,8 +103,9 @@ async def get_cfo_dashboard(x_tenant_id: str = Header(default="default", alias="
             true_roas = res[0] or 1.0
             meta_roas = res[1] or 1.0
             daily_spend = res[2] or 0.0
-            # Set standard deviation to 0.2 if 0 or null (safety default)
-            true_roas_std = res[3] if res[3] and res[3] > 0 else 0.2 
+            
+            # Standard deviation fallback from settings
+            true_roas_std = res[3] if res[3] and res[3] > 0 else getattr(settings, "BAYESIAN_DEFAULT_PRIOR_VAR", 0.2)
             
             # Calculate true P10 (Pessimistic Bound) using Bayesian math
             p10_roas = norm.ppf(0.10, loc=true_roas, scale=true_roas_std)

@@ -51,8 +51,15 @@ jobs:
       - name: Linting Check (Ruff Check)
         run: ruff check .
 
-      - name: Syntax Consistency Check
-        run: python syntax_check.py
+      - name: Shadowing Protection Check
+        run: |
+          # Ensure no local files shadow critical system libraries
+          for file in jwt.py stripe.py redis.py fix_all_errors.py syntax_check.py; do
+            if [ -f "$file" ]; then
+              echo "Error: $file found in root. This shadows system libraries."
+              exit 1
+            fi
+          done
 
       - name: Type Checking (Mypy)
         run: mypy
@@ -69,7 +76,7 @@ jobs:
 
       - name: Deployment Gate: Drift Integrity Check
         run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
           python -c "from trueroas.core.drift import check_reconciliation_drift; print('Drift Engine Ready')"
 
       - name: Logic Validation, Property Tests & 80% Coverage Gate

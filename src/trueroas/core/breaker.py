@@ -12,6 +12,7 @@ import redis
 from prometheus_client import Counter
 from sqlalchemy import text
 
+from src.trueroas.workers.meta_sync import MetaCAPI
 from src.trueroas.core.database import get_db_session
 from src.trueroas.core.config import settings
 
@@ -105,12 +106,36 @@ class AdSpendBreaker:
                 tenant_id=tenant_id, campaign_id=campaign_id, severity="SOFT"
             ).inc()
 
-        return {
+        result = {
             "status": status,
             "hard_avg": round(hard_avg, 3),
             "soft_avg": round(soft_avg, 3),
             "timestamp": now,
         }
+
+        return result
+
+    @staticmethod
+    async def execute_protection(tenant_id: str, campaign_id: str, auto_pause_enabled: bool):
+        """
+        Actuator: Actually stops the bleed if the system identifies a HARD_BREAKER state
+        and the brand has granted trust via auto_pause_enabled.
+        """
+        evaluation = AdSpendBreaker.evaluate(tenant_id, campaign_id)
+        
+        if evaluation["status"] == "HARD_BREAKER" and auto_pause_enabled:
+            logger.critical(f"CAPITAL_SAFETY_TRIGGERED: Auto-pausing campaign {campaign_id} for tenant {tenant_id}")
+            
+            api = MetaCAPI()
+            success = await api.pause_campaign(campaign_id)
+            
+            if success:
+                AdSpendBreaker.log_decision(
+                    tenant_id, campaign_id, "AUTO_PAUSE_EXECUTED", 
+                    f"Hard variance {evaluation['hard_avg']} exceeded threshold. Bleed stopped automatically."
+                )
+            return success
+        return False
 
     @staticmethod
     async def request_human_approval(

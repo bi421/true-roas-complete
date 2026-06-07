@@ -4,8 +4,8 @@ from typing import Dict
 
 import duckdb
 
-from trueroas.core.config import settings
-from trueroas.core.inference import DecisionEngine
+from src.trueroas.core.config import settings
+from src.trueroas.core.inference import DecisionEngine
 
 
 def sync_shopify(db_path: str) -> Dict[str, int]:

@@ -29,38 +29,29 @@ class StrategyContentService:
     # that can be easily externalized to a JSON file for i18n/localization.
     NARRATIVE_TEMPLATES = {
         "en": {
-            "STRONG_SCALE": "We've identified a verified window for growth. With a {confidence} decision certainty, your current performance is stable enough to absorb more capital. Reconciled data shows a real ROAS of {real_roi}, which supports an aggressive budget lift. The primary focus should be maintaining inventory levels as you scale.",
-            "CAUTIOUS_SCALE": "The trend is positive, but the evidence is still stabilizing. While we see a path to {real_roi} ROAS, market volatility suggests a step-by-step approach. We recommend a incremental budget increase while keeping a close watch on {bottleneck} stability over the next 48 hours.",
-            "REDUCE_OR_HOLD": "Capital preservation is currently the priority. The system detected a {risk_level} risk level, meaning the attribution signals are currently diverging from bank-truth metrics. To ensure Andromeda scales profitably, we recommend holding spend until the {bottleneck} signals align.",
+            "STRONG_SCALE": "AI Analysis: We've identified a verified window for growth. With a {confidence} decision certainty, your performance is stable. Reconciled data shows a real ROAS of {real_roi}. Suggesting a budget lift of +{scaling_intensity} to maximize returns.",
+            "CAUTIOUS_SCALE": "AI Observation: Positive trend detected, but evidence is stabilizing. Path to {real_roi} ROAS is visible. Recommend a step-by-step {bottleneck} optimization over the next 48 hours.",
+            "REDUCE_OR_HOLD": "AI Alert: Capital preservation is priority. Risk Level: {risk_level}. Attribution signals are {variance_pct} ahead of bank-truth. To stop ${capital_bleed_usd} daily bleed, hold spend until signals align.",
         }
     }
 
     @staticmethod
-    @ttl_cache(
-        maxsize=512, ttl=3600
-    )  # Invalidate after 1 hour for Meta API sync parity
-    def generate_post_mortem(decision_data_json: str) -> Dict[str, Any]:
+    def generate_post_mortem(decision_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Reports the outcome of business decisions (Profit/Loss) clearly to the Founder.
         """
-        try:
-            decision_data = json.loads(decision_data_json)
-        except Exception as e:
-            logger.error(f"Failed to decode decision data for post-mortem: {e}")
-            return {"status": "error", "message": "Malformed decision record."}
-
-        # Fix 1, 3 & 5: Handle insufficient data using Decimal precision
-        actual_roas_val = (
-            decision_data.get("actual_roas_90d")
-            or decision_data.get("actual_roas_30d")
-            or 0.0
+        # Attempt to find the most mature actual ROAS available (90d -> 30d -> 7d)
+        actual_roas_val = next(
+            (decision_data.get(k) for k in ["actual_roas_90d", "actual_roas_30d", "actual_roas_7d"] 
+             if decision_data.get(k) is not None), 
+            0.0
         )
         dec_actual = Decimal(str(actual_roas_val))
 
         if dec_actual < Decimal("0.1"):
             return {
                 "status": "insufficient_data",
-                "message": "Verification requires a minimum realized ROAS of 0.1 to prevent statistical bias.",
+                "message": "Verification requires a minimum realized ROAS of 0.1 to maintain statistical integrity.",
             }
 
         # Fix 4: Robust key access
@@ -107,6 +98,9 @@ class StrategyContentService:
         risk_level: str,
         bottleneck: str = "Performance",
         lang: str = "en",
+        scaling_intensity: str = "20%",
+        variance_pct: str = "0%",
+        capital_bleed_usd: str = "0.00",
         **_: Any,
     ) -> str:
         """
@@ -124,6 +118,9 @@ class StrategyContentService:
                 real_roi=real_roi,
                 bottleneck=bottleneck,
                 risk_level=risk_level,
+                scaling_intensity=scaling_intensity,
+                variance_pct=variance_pct,
+                capital_bleed_usd=capital_bleed_usd
             )
         except KeyError:
             return "Strategic analysis in progress..."
@@ -176,7 +173,7 @@ class StrategyContentService:
         """
         if action == "REDUCE_OR_HOLD":
             return [
-                f"🚨 Immediate Action: Pause ad sets exceeding ${incremental_spend:,.2f} daily waste where variance is >30%.",
+                f"🚨 Immediate Action: Pause ad sets exceeding ${incremental_spend:,.2f} daily bleed where variance is >30%.",
                 f"🔍 Integrity Audit: Cross-reference Shopify Transaction IDs with Meta's {bottleneck_layer} signals.",
                 "📉 Capital Preservation: Re-allocate budget to verified stable baseline campaigns."
             ]
