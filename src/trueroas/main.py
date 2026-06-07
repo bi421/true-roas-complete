@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 import duckdb
 from scipy.stats import norm
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from src.trueroas.core.config import settings
 from src.trueroas.core.database import get_db_path
 
@@ -18,7 +18,7 @@ try:
 except ImportError:
     landing_router = None
 
-# 🚀 DEPLOYMENT FIX: Import Celery/Redis safely. If they are not configured (like on Render Free Tier), the app still boots.
+# DEPLOYMENT FIX: Import Celery/Redis safely. If they are not configured (like on Render Free Tier), the app still boots.
 CELERY_ACTIVE = False
 try:
     from src.trueroas.workers.tasks import sync_meta_data
@@ -181,3 +181,23 @@ async def get_cfo_dashboard(x_tenant_id: str = Header(default="default", alias="
             "action_required": "HOLD",
             "cfo_brief": "Dashboard initializing. Awaiting first data sync."
         }
+
+@app.post("/api/v1/leads")
+async def capture_lead(request: Request):
+    """Capture early access emails from the landing page."""
+    try:
+        data = await request.json()
+        email = data.get("email")
+        if email:
+            logger.info(f"🔥 NEW LEAD CAPTURED: {email}")
+            # TODO: Future integration with Resend or CRM database
+            return {"status": "success", "message": "Audit request received!"}
+        return {"status": "error", "message": "Email not provided"}
+    except Exception as e:
+        logger.error(f"Lead capture error: {e}")
+        return {"status": "error", "message": "Invalid request"}
+
+@app.post("/api/subscribe")
+async def subscribe_lead(request: Request):
+    """Alternative endpoint for frontend subscription forms."""
+    return await capture_lead(request)
