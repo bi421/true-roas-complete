@@ -1127,13 +1127,15 @@
         const ctaEmail = document.getElementById('ctaEmail');
         const ctaError = document.getElementById('ctaError');
 
-        betaForm.addEventListener('submit', (e) => {
+        betaForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = ctaEmail.value;
             const submitBtn = betaForm.querySelector('button');
+            const email = ctaEmail.value.trim();
+            const originalBtnText = submitBtn.innerHTML;
             
             // Simple validation regex
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                ctaError.textContent = "Please enter a valid business email address.";
                 ctaError.style.display = 'block';
                 ctaEmail.style.borderColor = 'var(--danger)';
                 return;
@@ -1142,15 +1144,50 @@
             ctaError.style.display = 'none';
             ctaEmail.style.borderColor = 'var(--secondary-accent)';
             
-            // Simulate loading
-            submitBtn.textContent = 'Sending...';
+            // UI State: Loading & Cold Start Awareness
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span style="opacity: 0.8;">Waking up server...</span>';
             submitBtn.style.opacity = '0.7';
             
-            setTimeout(() => {
-                submitBtn.textContent = 'Success! Slot Reserved';
-                submitBtn.style.background = 'var(--secondary-accent)';
-                ctaEmail.value = '';
-            }, 1500);
+            // Render Free Tier can take up to 60s to wake up
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 65000); 
+
+            try {
+                const response = await fetch('/api/v1/leads', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                const data = await response.json();
+
+                if (response.ok && (data.status === 'success' || data.status === 'success!')) {
+                    // Success State
+                    submitBtn.textContent = 'Success! Slot Reserved';
+                    submitBtn.style.background = 'var(--secondary-accent)';
+                    ctaEmail.value = '';
+                    
+                    // UX: Smoothly transition form to success message
+                    setTimeout(() => {
+                        betaForm.innerHTML = '<div style="padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; border: 1px solid var(--secondary-accent);"><h3 style="margin: 0; color: var(--white);">Verification Request Received.</h3><p style="margin: 10px 0 0; font-size: 16px; color: rgba(255,255,255,0.8);">We will contact you shortly at <strong>' + email + '</strong>.</p></div>';
+                    }, 800);
+                } else {
+                    throw new Error(data.message || 'Submission failed');
+                }
+            } catch (err) {
+                console.error("API Error:", err);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.style.opacity = '1';
+                
+                ctaError.textContent = err.name === 'AbortError' 
+                    ? "The server is taking longer than usual to wake up. Please try one more time."
+                    : "Connection failed. Please check your internet or try again in 30 seconds.";
+                ctaError.style.display = 'block';
+            }
         });
 
         ctaEmail.addEventListener('input', () => {
