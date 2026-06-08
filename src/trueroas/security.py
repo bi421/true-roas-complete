@@ -66,7 +66,7 @@ def validate_path(path: Path) -> Path:
     return resolved_path
 
 
-def suspend_tenant(tenant_id: str):
+def suspend_tenant(tenant_id: str) -> None:
     """IMMEDIATE mitigation: Suspends a tenant to block API access."""
     db = SessionLocal()
     try:

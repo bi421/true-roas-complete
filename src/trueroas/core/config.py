@@ -22,10 +22,19 @@ def calculate_entropy(s: str) -> float:
 
 class Settings(BaseSettings):
     # Branding & Independence Settings
-    APP_NAME: str = Field(default="Decision Intelligence", description="Name of the software instance")
-    BRAND_DOMAIN: str = Field(default="localhost", description="Base domain for links and identities")
-    ENVIRONMENT: str = Field(default="development", description="Current environment (development/production)")
-    CORS_ORIGINS: str = Field(default="*", description="Comma-separated allowed origins for CORS")
+    APP_NAME: str = Field(
+        default="Decision Intelligence", description="Name of the software instance"
+    )
+    BRAND_DOMAIN: str = Field(
+        default="localhost", description="Base domain for links and identities"
+    )
+    ENVIRONMENT: str = Field(
+        default="development",
+        description="Current environment (development/production)",
+    )
+    CORS_ORIGINS: str = Field(
+        default="*", description="Comma-separated allowed origins for CORS"
+    )
 
     # Security Settings
     APP_SECRET_SALT: str = Field(
@@ -33,8 +42,12 @@ class Settings(BaseSettings):
         min_length=32,
         description="Master secret for tenant salt derivation",
     )
-    STRICT_LOCAL_MODE: bool = Field(default=True, description="Blocks all external data egress (API calls/Emails)")
-    EXCHANGE_RATE_TTL: int = Field(default=3600, description="TTL for FX rate cache in seconds")
+    STRICT_LOCAL_MODE: bool = Field(
+        default=True, description="Blocks all external data egress (API calls/Emails)"
+    )
+    EXCHANGE_RATE_TTL: int = Field(
+        default=3600, description="TTL for FX rate cache in seconds"
+    )
     SHOPIFY_API_SECRET: Optional[str] = None
     MAINTENANCE_MODE: bool = Field(default=False)
     MODEL_VERSION_HASH: str = Field(default="v2.1-stable")
@@ -88,7 +101,9 @@ class Settings(BaseSettings):
     MADE_IN_USA: bool = True
     DEFAULT_CURRENCY: str = "USD"
 
-    SUPPORT_EMAIL: str = Field(default="admin@localhost", description="Support email for tenant outreach")
+    SUPPORT_EMAIL: str = Field(
+        default="admin@localhost", description="Support email for tenant outreach"
+    )
 
     # Business Logic Thresholds (Mathematically Justified)
     DAILY_SPEND_CAP: float = Field(default=500.0, gt=0)
@@ -192,9 +207,7 @@ class Settings(BaseSettings):
     DEFAULT_BENCHMARK_FREQ: float = 2.5
 
     # Integration Settings
-    META_ACCESS_TOKEN: Optional[str] = Field(
-        default=None, pattern=r"^[a-zA-Z0-9_\-]+$"
-    )
+    META_ACCESS_TOKEN: Optional[str] = Field(default=None, pattern=r"^[a-zA-Z0-9_\-]+$")
     META_AD_ACCOUNT_ID: str = "act_demo_123"
     META_PIXEL_ID: Optional[str] = None
     META_API_VERSION: str = "v21.0"
@@ -202,7 +215,7 @@ class Settings(BaseSettings):
     SHOPIFY_TOKEN: Optional[str] = None
     TELEGRAM_BOT_TOKEN: str = "DEMO"
     TELEGRAM_CHAT_ID: Optional[str] = None
-    TRUEROAS_API_URL: str = "http://localhost:8001" # Default to self
+    TRUEROAS_API_URL: str = "http://localhost:8001"  # Default to self
 
     # Payment & Marketing Validation
     STRIPE_SECRET_KEY: Optional[str] = None

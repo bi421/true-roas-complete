@@ -2,6 +2,7 @@
 #  All rights reserved.
 #  Proprietary and confidential.
 
+from typing import Any
 from fastapi import APIRouter
 
 from trueroas.core.config import settings
@@ -10,7 +11,7 @@ router = APIRouter(tags=["System & Trust"])
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict[str, Any]:
     """
     Standard health check endpoint providing service status
     and US-based compliance metadata for auditors.
@@ -30,7 +31,7 @@ async def health():
 
 
 @router.get("/about")
-async def about():
+async def about() -> dict[str, Any]:
     """
     Provides business-level trust signals and real-time capital preservation metrics.
     """

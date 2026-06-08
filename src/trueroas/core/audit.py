@@ -22,6 +22,6 @@ class USComplianceService:
 class QuickBooksSync:
     """Placeholder for the #1 US SMB accounting integration."""
 
-    def push_to_qb(self, tenant_id: str, verified_profit: float):
+    def push_to_qb(self, tenant_id: str, verified_profit: float) -> None:
         # Logic to map TrueROAS outcomes to QuickBooks P&L sub-accounts
         pass

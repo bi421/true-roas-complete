@@ -1,8 +1,7 @@
-import os
-
-import anyio
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
+from src.trueroas.core.config import settings
+import anyio
 
 router = APIRouter()
 
@@ -13,13 +12,13 @@ def _read_file_sync(path: str) -> str:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def get_landing_page():
+async def get_landing_page() -> str:
     """
     Serves the conversion-focused landing page.
     """
-    static_path = os.path.join("static", "index.html")
-    if not os.path.exists(static_path):
-        static_path = "index.html"
-    # Production Fix: Use thread pool for blocking file I/O
-    content = await anyio.to_thread.run_sync(_read_file_sync, static_path)
-    return content
+    static_path = settings.BASE_DIR / "static" / "index.html"
+    try:
+        content = await anyio.to_thread.run_sync(_read_file_sync, str(static_path))
+        return content
+    except FileNotFoundError:
+        return "<html><body><h1>TrueROAS</h1></body></html>"

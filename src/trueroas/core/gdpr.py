@@ -1,5 +1,6 @@
+from __future__ import annotations
 import uuid
-
+from typing import Any, Dict
 import duckdb
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,7 +23,7 @@ class ErasureRequest(BaseModel):
 @router.get("/export")
 async def export_tenant_data(
     tenant_id: str = Depends(get_current_tenant), db: Session = Depends(get_db_session)
-):
+) -> Dict[str, Any]:
     """Returns all data associated with a tenant, ensuring only hashed PII is included.
 
     Optimized for execution < 30s via DuckDB read-only connection.
@@ -56,13 +57,13 @@ async def export_tenant_data(
             try:
                 # Optimization: Limit export size per table to prevent memory spikes
                 cursor = con.execute(f"SELECT * FROM {table} LIMIT 5000")
-                if cursor.description is None:
+                if cursor.description is not None:
+                    cols = [desc[0] for desc in cursor.description]
+                    export_data["warehouse"][table] = [
+                        dict(zip(cols, r)) for r in cursor.fetchall()
+                    ]
+                else:
                     export_data["warehouse"][table] = []
-                    continue
-                cols = [desc[0] for desc in cursor.description]
-                export_data["warehouse"][table] = [
-                    dict(zip(cols, r)) for r in cursor.fetchall()
-                ]
             except Exception:
                 export_data["warehouse"][table] = []
 
@@ -71,8 +72,10 @@ async def export_tenant_data(
 
 @router.delete("/erase", status_code=status.HTTP_202_ACCEPTED)
 async def erase_subject_data(
-    req: ErasureRequest, _=Depends(require_admin), db: Session = Depends(get_db_session)
-):
+    req: ErasureRequest,
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> Dict[str, Any]:
     """Hard erasure endpoint protected by MFA for GDPR compliance.
 
     Triggers async cascade through all infrastructure layers.
@@ -86,16 +89,14 @@ async def erase_subject_data(
     """
     # Requirement 1.a: MFA Verification
     # Fetch the tenant's real MFA secret from the database
-    tenant = (
-        db.query(Tenant).filter(Tenant.slug == req.subject_identifier).first()
-    )  # Assuming subject_identifier is tenant_id for MFA
+    tenant = db.query(Tenant).filter(Tenant.slug == req.subject_identifier).first()
     if not tenant or not tenant.mfa_secret:
         raise HTTPException(
             status_code=400,
             detail="MFA is not configured for this tenant or tenant not found",
         )
 
-    totp = pyotp.TOTP(tenant.mfa_secret)
+    totp = pyotp.TOTP(str(tenant.mfa_secret))
     if not totp.verify(req.mfa_code):
         raise HTTPException(status_code=403, detail="MFA verification failed")
 
@@ -118,8 +119,8 @@ async def erase_subject_data(
 
 @router.get("/export/{subject_identifier}")
 async def export_subject_portability(
-    subject_identifier: str, _=Depends(get_current_tenant)
-):
+    subject_identifier: str, _: str = Depends(get_current_tenant)
+) -> Dict[str, str]:
     """Handles data portability requests in compliance with GDPR Article 20.
 
     Args:

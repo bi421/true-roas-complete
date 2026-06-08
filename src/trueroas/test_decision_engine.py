@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 from src.trueroas.core.decision_intelligence import (
     DecisionThresholds,
     GrowthEngine,

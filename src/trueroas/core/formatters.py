@@ -3,7 +3,7 @@
 #  Proprietary and confidential.
 
 from datetime import datetime
-from zoneinfo import ZoneInfo  # type: ignore
+from zoneinfo import ZoneInfo
 
 
 def get_us_now() -> datetime:

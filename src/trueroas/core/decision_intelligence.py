@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 from trueroas.core.config import settings
 
 
-class _AttrDict(dict):
+class _AttrDict(Dict[str, Any]):
     def __getattr__(self, name: str) -> Any:
         try:
             return self[name]
@@ -17,7 +17,7 @@ class _AttrDict(dict):
             raise AttributeError(name) from exc
 
 
-class _BottleneckResult(dict):
+class _BottleneckResult(Dict[str, Any]):
     @property
     def issues(self) -> List[_AttrDict]:
         return [
@@ -173,7 +173,9 @@ class QualityEngine:
             "warning": (
                 "Small sample size"
                 if sample_factor < 0.4
-                else "High volatility" if stability_factor < 0.4 else None
+                else "High volatility"
+                if stability_factor < 0.4
+                else None
             ),
             "trustworthiness_score": int(score * 100),
         }
@@ -421,9 +423,9 @@ class RecommendationEngine:
         obs: str,
         evidence: str,
         hypothesis: str,
-        quality: Dict,
-        readiness: Dict,
-        economics: Dict,
+        quality: Dict[str, Any],
+        readiness: Dict[str, Any],
+        economics: Dict[str, Any],
         ev: float,
         action: str,
         reasoning: str,
@@ -598,7 +600,7 @@ class GrowthEngine:
         variable_cost_rate: float,
         lever_name: str,
         improvement: float,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """Estimates the financial impact of removing a specific funnel constraint."""
         current_profit = current_revenue * (1 - variable_cost_rate) - current_spend
         sim_revenue = current_revenue * (1 + improvement)
@@ -607,7 +609,7 @@ class GrowthEngine:
         prob = 0.65 if lever_name == "Creative" else 0.80
         return {
             "lever": lever_name,
-            "improvement": f"+{int(improvement*100)}%",
+            "improvement": f"+{int(improvement * 100)}%",
             "profit_impact": round(delta, 2),
             "expected_value": round(delta * prob, 2),
             "probability": prob,
@@ -619,7 +621,7 @@ class GrowthEngine:
         revenue: float,
         db_path: Optional[str] = None,
         vertical: str = "default",
-    ) -> list:
+    ) -> List[Dict[str, Any]]:
         """Ranks levers based on empirical achievable improvements or vertical benchmarks."""
         # Fallback vertical defaults (benchmarks from beauty, apparel, supplements, electronics)
         vertical_defaults = {

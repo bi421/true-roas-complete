@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 import duckdb
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel, Field
 
 from src.trueroas.core.accountability import DecisionAccountabilityEngine
@@ -43,10 +43,10 @@ class MetricsResponse(BaseModel):
 @router.get("/metrics", response_model=MetricsResponse)
 @limiter.limit(settings.RATE_LIMIT_METRICS)
 async def get_metrics(
-    request: Request, 
+    request: Request,
     tenant_id: str = Depends(get_current_tenant),
     start_date: Optional[date] = Query(None),
-    end_date: Optional[date] = Query(None)
+    end_date: Optional[date] = Query(None),
 ) -> MetricsResponse:
     """
     Fetch current performance metrics and truth data.
@@ -101,7 +101,7 @@ async def get_metrics(
                 action="REDUCE_OR_HOLD",
                 variance_pct=0.33,
                 confidence=0.62,
-                spend_at_risk=3300.0,
+                incremental_spend=3300.0,
             )
 
             # 3. Generate future cycle plan based on historical performance (Feedback Loop)
@@ -128,16 +128,18 @@ async def get_metrics(
                 ORDER BY clean_date ASC
             """
             trends = con.execute(trend_query, params).fetchall()
-            
+
             # Format for frontend chart consumption
             daily_trends = []
             for r in trends:
-                daily_trends.append({
-                    "date": r[0].strftime("%Y-%m-%d"),
-                    "true_roas": float(round(r[1], 2)),
-                    "meta_roas": float(round(r[2], 2)),
-                    "capital_bleed_usd": float(round(r[3], 2))
-                })
+                daily_trends.append(
+                    {
+                        "date": r[0].strftime("%Y-%m-%d"),
+                        "true_roas": float(round(r[1], 2)),
+                        "meta_roas": float(round(r[2], 2)),
+                        "capital_bleed_usd": float(round(r[3], 2)),
+                    }
+                )
 
             # In production, these values are derived from the Bayesian Posterior stored in historical_metrics
             metrics = {
@@ -161,5 +163,5 @@ async def get_metrics(
             redis_client.set(cache_key, json.dumps(metrics), ex=300)
             return MetricsResponse(**metrics)
 
-    except duckdb.Error as e:
+    except duckdb.Error:
         return default_metrics()

@@ -6,7 +6,7 @@ import hashlib
 import json
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any, Dict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 import duckdb
 from src.trueroas.auth import get_current_tenant
-from src.trueroas.core.config import settings
 from src.trueroas.core.database import get_db_session, get_db_path
 from src.trueroas.core.strategy_content import StrategyContentService
 
@@ -36,7 +35,7 @@ async def ingest_decision(
     req: DecisionCreate,
     tenant_id: str = Depends(get_current_tenant),
     db: Session = Depends(get_db_session),
-):
+) -> Dict[str, str]:
     """Requirement 1: Ingest strategic decision and ensure immutability."""
     decision_id = str(uuid.uuid4())
 
@@ -45,25 +44,35 @@ async def ingest_decision(
     payload_hash = hashlib.sha256(payload_json.encode()).hexdigest()
 
     # Recommendation: Model versioning - capture the state of the code at the time of decision
-    model_hash = getattr(settings, "MODEL_VERSION_HASH", "unknown")
+    # model_hash = getattr(settings, "MODEL_VERSION_HASH", "unknown")
 
     db_path = get_db_path(tenant_id)
     with duckdb.connect(db_path) as con:
-        con.execute("""
+        con.execute(
+            """
             INSERT INTO decision_audit_trail 
             (decision_id, tenant_id, campaign_id, action, expected_roas, confidence_level, 
              assumptions_json, checksum, user_id, status, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-        """, [
-            decision_id, tenant_id, req.campaign_id, req.action, 
-            req.expected_roas, req.confidence_level,
-            json.dumps({
-                "rationale": req.rationale,
-                "proposed_increase": req.proposed_increase_usd,
-                "meta_roas_observed": req.meta_roas_observed,
-            }),
-            payload_hash, "admin_user"
-        ])
+        """,
+            [
+                decision_id,
+                tenant_id,
+                req.campaign_id,
+                req.action,
+                req.expected_roas,
+                req.confidence_level,
+                json.dumps(
+                    {
+                        "rationale": req.rationale,
+                        "proposed_increase": req.proposed_increase_usd,
+                        "meta_roas_observed": req.meta_roas_observed,
+                    }
+                ),
+                payload_hash,
+                "admin_user",
+            ],
+        )
 
     return {"decision_id": decision_id, "status": "created", "checksum": payload_hash}
 
@@ -73,7 +82,7 @@ async def get_decision_report(
     decision_id: str,
     tenant_id: str = Depends(get_current_tenant),
     db: Session = Depends(get_db_session),
-):
+) -> Dict[str, Any]:
     """Download the post-decision audit report."""
     res = (
         db.execute(
@@ -100,7 +109,7 @@ async def approve_decision(
     approver_role: str = Header(..., alias="X-Approver-Role"),
     tenant_id: str = Depends(get_current_tenant),
     db: Session = Depends(get_db_session),
-):
+) -> Dict[str, str]:
     approval_ts = datetime.utcnow().isoformat()
     db.execute(
         text("""

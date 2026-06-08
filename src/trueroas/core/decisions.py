@@ -6,15 +6,14 @@ import hashlib
 import hmac
 import json
 import uuid
+import logging
 from datetime import datetime
-from typing import Any, cast
-from typing import Optional
+from typing import Any, cast, Optional, Dict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-import logging
 
 from src.trueroas.auth import get_current_tenant
 from src.trueroas.core.breaker import redis_client
@@ -28,7 +27,9 @@ router = APIRouter(prefix="/api/v1/decisions", tags=["Strategic Decisions"])
 
 
 @router.get("/dashboard/us-metrics")
-async def get_us_dashboard_metrics(tenant_id: str = Depends(get_current_tenant)):
+async def get_us_dashboard_metrics(
+    tenant_id: str = Depends(get_current_tenant),
+) -> Dict[str, str]:
     """High-impact metrics for US-based founders."""
     # This would normally query the audit trail for prevent spend
     return {
@@ -40,14 +41,14 @@ async def get_us_dashboard_metrics(tenant_id: str = Depends(get_current_tenant))
         "audit_status": "WORM-Compliant Logs Active",
         "data_residency": "Strictly Local (On-Premise)",
         "tax_readiness": "IRS-ready audit pack available",
-        "verdict": "Your ad spend is mathematically anchored to verified revenue."
+        "verdict": "Your ad spend is mathematically anchored to verified revenue.",
     }
+
 
 @router.get("/dashboard/capital-saved")
 async def get_capital_saved(
-    tenant_id: str = Depends(get_current_tenant),
-    db: Session = Depends(get_db_session)
-):
+    tenant_id: str = Depends(get_current_tenant), db: Session = Depends(get_db_session)
+) -> Dict[str, Any]:
     """
     For business owners: Displays the budget saved today and in total.
     Aggregates 'capital_saved' data calculated during META_SYNC from the Job Audit Log.
@@ -58,7 +59,7 @@ async def get_capital_saved(
 
     # 2. Өнөөдрийн аварсан төсвийг өгөгдлийн сангаас тооцоолох (UTC өдрөөр)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     # Filter the results of successful syncs completed today from the tenant's own warehouse
     query = text("""
         SELECT metadata_json 
@@ -67,9 +68,9 @@ async def get_capital_saved(
           AND job_type = 'META_SYNC' 
           AND started_at >= :today
     """)
-    
+
     results = db.execute(query, {"tid": tenant_id, "today": today_start}).fetchall()
-    
+
     daily_saved = sum(
         json.loads(row[0]).get("capital_saved", 0.0) for row in results if row[0]
     )
@@ -79,13 +80,15 @@ async def get_capital_saved(
         "capital_saved_today": round(daily_saved, 2),
         "capital_saved_total": round(total_saved, 2),
         "currency": "USD",
-        "last_updated": datetime.utcnow().isoformat()
+        "last_updated": datetime.utcnow().isoformat(),
     }
 
 
 class DecisionCreate(BaseModel):
     campaign_id: str
-    action: str = Field(..., pattern="^(SCALE|STRONG_SCALE|CAUTIOUS_SCALE|REDUCE_OR_HOLD)$")
+    action: str = Field(
+        ..., pattern="^(SCALE|STRONG_SCALE|CAUTIOUS_SCALE|REDUCE_OR_HOLD)$"
+    )
     proposed_increase_usd: float = Field(..., ge=0)
     expected_roas: float = Field(..., gt=0)
     confidence_level: float = Field(..., ge=0, le=1)
@@ -97,7 +100,7 @@ class DecisionCreate(BaseModel):
 async def ingest_decision(
     req: DecisionCreate,
     tenant_id: str = Depends(get_current_tenant),
-):
+) -> Dict[str, str]:
     """Ingests strategic decision and ensures immutability via payload hashing.
 
     Args:
@@ -153,9 +156,14 @@ async def ingest_decision(
                 },
             )
             db.commit()
-    except Exception as e:
-        logger.error(f"Audit Integrity Failure: Failed to ingest decision {decision_id}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to persist decision to audit trail")
+    except Exception:
+        logger.error(
+            f"Audit Integrity Failure: Failed to ingest decision {decision_id}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to persist decision to audit trail"
+        )
 
     return {"decision_id": decision_id, "status": "created", "checksum": payload_hash}
 
@@ -165,7 +173,7 @@ async def get_decision_report(
     decision_id: str,
     tenant_id: str = Depends(get_current_tenant),
     db: Session = Depends(get_db_session),
-):
+) -> Dict[str, Any]:
     """Downloads the post-decision audit report for a specific decision.
 
     Args:
@@ -201,7 +209,7 @@ async def approve_decision(
     approver_role: str = Header(..., alias="X-Approver-Role"),  # CEO or Accountant
     tenant_id: str = Depends(get_current_tenant),
     db: Session = Depends(get_db_session),
-):
+) -> Dict[str, str]:
     """Records stakeholder approval for a decision in the audit trail.
 
     Args:

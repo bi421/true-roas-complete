@@ -16,6 +16,7 @@ try:
     import evidently.metrics as _metrics
     import evidently.report as _report
 except ModuleNotFoundError:
+
     class _Pandas:
         class DataFrame:
             empty = True
@@ -40,7 +41,9 @@ except ModuleNotFoundError:
             return None
 
         def as_dict(self) -> dict[str, Any]:
-            return {"metrics": [{"result": {"drift_score": 0.0, "drift_detected": False}}]}
+            return {
+                "metrics": [{"result": {"drift_score": 0.0, "drift_detected": False}}]
+            }
 
     DataDriftPreset = _FallbackDataDriftPreset
     DataQualityPreset = _FallbackDataQualityPreset
@@ -105,7 +108,7 @@ def check_reconciliation_drift(
     return False
 
 
-def check_fairness_bias(df: pd.DataFrame):
+def check_fairness_bias(df: pd.DataFrame) -> bool:
     """
     EU AI Act Phase 5: Fairness Monitoring.
     Checks if decisions maintain equal accuracy across low-spend and high-spend segments.

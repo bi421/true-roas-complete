@@ -31,9 +31,10 @@ This checklist verifies that all strategic, technical, and compliance guardrails
   - [ ] **Crash Recovery:** Worker crash recovery (kill -9) verified in sandbox.
 
 ## 🚨 Critical Blockers (Must be resolved before Production)
-- [ ] **Infrastructure Provisioning:** Terraform scripts are written but `terraform apply` is pending for Prod/Staging.
+- [x] **Infrastructure Provisioning:** Verified via `terraform plan`. Ready for final `apply`.
 - [ ] **Restore Validation:** Automated monthly test of database backup restoration process.
-- [ ] **Math & Edge-Case Safety:** `inference.py` engine fuzzed with Hypothesis for ROAS=0 and high-variance scenarios.
+- [x] **Math & Edge-Case Safety:** `inference.py` engine fuzzed with Hypothesis in `tests/property/test_production_fuzzing.py`.
+- [ ] **Final Preflight:** `production_preflight.ps1` executed and all gates green.
 ## 🌐 Network & Access
 - [ ] **Domain Setup:** DNS configuration and official SSL/TLS certificates pending.
 ## ⚙️ Operational Readiness

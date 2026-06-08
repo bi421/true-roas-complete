@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 from typing import Any
 
 try:
@@ -9,6 +10,7 @@ HttpUser: Any
 task: Any
 
 if locust is None:
+
     class _FallbackHttpUser:
         client = None
 

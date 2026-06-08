@@ -11,15 +11,15 @@ class DecisionDelayEngine:
         Returns:
             dict: Estimated costs of delay for 7, 14, and 30-day periods.
         """
-        # EV represents the total value of the move. 
+        # EV represents the total value of the move.
         # We assume a standard 7-day implementation cycle for the daily rate.
         daily_opportunity = max(ev / 7.0, 0)
-        
-        # Delay impact is usually non-linear due to compounding/market shifts, 
+
+        # Delay impact is usually non-linear due to compounding/market shifts,
         # but we start with a linear opportunity cost.
         return {
             "delay_7_days": round(daily_opportunity * 7, 2),
             "delay_14_days": round(daily_opportunity * 14, 2),
             "delay_30_days": round(daily_opportunity * 30, 2),
-            "urgency_score": int(min(daily_opportunity / 100, 1.0) * 100)
+            "urgency_score": int(min(daily_opportunity / 100, 1.0) * 100),
         }

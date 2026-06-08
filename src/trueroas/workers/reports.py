@@ -1,5 +1,6 @@
 import time
-from fastapi import APIRouter, Header, status
+from typing import Any
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from celery.result import AsyncResult
 from src.trueroas.workers.tasks import celery_app, generate_pdf_report
@@ -8,8 +9,11 @@ from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])
 
+
 @router.post("/pdf", status_code=status.HTTP_202_ACCEPTED)
-async def generate_audit_report(tenant_id: str = Depends(get_current_tenant)):
+async def generate_audit_report(
+    tenant_id: str = Depends(get_current_tenant),
+) -> JSONResponse:
     """
     Queues an async audit report generation.
     """
@@ -17,11 +21,7 @@ async def generate_audit_report(tenant_id: str = Depends(get_current_tenant)):
     report_data = {
         "tenant_id": tenant_id,
         "timestamp": str(time.time()),
-        "summary": {
-            "meta_roas": 4.2,
-            "true_roas": 2.8,
-            "variance": "33%"
-        }
+        "summary": {"meta_roas": 4.2, "true_roas": 2.8, "variance": "33%"},
     }
 
     task = generate_pdf_report.delay(tenant_id, report_data)
@@ -31,12 +31,13 @@ async def generate_audit_report(tenant_id: str = Depends(get_current_tenant)):
         content={
             "report_id": task.id,
             "status": "queued",
-            "message": "PDF generation started."
-        }
+            "message": "PDF generation started.",
+        },
     )
 
+
 @router.get("/{report_id}")
-async def get_report_status(report_id: str):
+async def get_report_status(report_id: str) -> dict[str, Any]:
     """
     Polls the status of a specific PDF generation task.
     """

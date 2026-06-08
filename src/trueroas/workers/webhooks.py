@@ -2,19 +2,19 @@
 #  All rights reserved.
 #  Proprietary and confidential.
 
+from __future__ import annotations
 import base64
 import hashlib
 import hmac
 import logging
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, TypedDict, Union, cast
 
 import stripe
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from src.trueroas.core.subscriptions import SubscriptionStatus
 from src.trueroas.core.config import settings
 from src.trueroas.core.database import get_db_session
 from src.trueroas.core.subscriptions import (
@@ -32,6 +32,12 @@ logger = logging.getLogger("trueroas.webhooks")
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
 
+class WebhookResponse(TypedDict):
+    status: str
+    event_id: str | None
+    topic: str | None
+
+
 def verify_shopify_signature(body: bytes, hmac_header: str) -> bool:
     """Verifies the HMAC signature provided by Shopify.
 
@@ -47,8 +53,11 @@ def verify_shopify_signature(body: bytes, hmac_header: str) -> bool:
     """
     if not settings.SHOPIFY_API_SECRET:
         return False
-    hash = hmac.new(settings.SHOPIFY_API_SECRET.encode(), body, hashlib.sha256).digest()
-    expected_hmac = base64.b64encode(hash).decode()
+    msg_hash = hmac.new(
+        settings.SHOPIFY_API_SECRET.encode(), body, hashlib.sha256
+    ).digest()
+    # Use base64.b64encode for consistent encoding with Shopify's HMAC
+    expected_hmac = base64.b64encode(msg_hash).decode()
     return hmac.compare_digest(expected_hmac, hmac_header)
 
 
@@ -66,20 +75,20 @@ async def verify_stripe_signature(payload: bytes, sig_header: str) -> Dict[str, 
     Verify Stripe webhook signature.
     """
     try:
-        event = stripe.Webhook.construct_event(
+        event = stripe.Webhook.construct_event(  # type: ignore[no-untyped-call]
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
-        return event
+        return cast(Dict[str, Any], event)
     except ValueError as e:
         logger.error(f"Invalid Stripe payload: {e}")
         raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError as e:
+    except stripe.error.SignatureVerificationError as e:  # type: ignore[attr-defined]
         logger.error(f"Invalid Stripe signature: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
 
-@router.post("/stripe")
-async def stripe_webhook(request: Request):
+@router.post("/stripe", response_model=None)
+async def stripe_webhook(request: Request) -> Any:
     """
     Handle Stripe webhook events for subscription management.
     """
@@ -107,14 +116,16 @@ async def stripe_webhook(request: Request):
             elif event_type == "customer.subscription.deleted":
                 await _handle_subscription_deleted(db, event_data)
 
-            return {"status": "success", "event_id": event["id"]}
+            return WebhookResponse(
+                status="success", event_id=str(event.get("id")), topic=None
+            )
         except Exception as e:
             logger.exception(f"Error processing webhook: {e}")
             db.rollback()
             raise HTTPException(status_code=500, detail="Internal error")
 
 
-async def _handle_checkout_completed(db: Session, session: Dict[str, Any]):
+async def _handle_checkout_completed(db: Session, session: Dict[str, Any]) -> None:
     """Activate subscription after successful checkout."""
     tenant_id = session.get("client_reference_id")
     subscription_id = session.get("subscription")
@@ -138,19 +149,23 @@ async def _handle_checkout_completed(db: Session, session: Dict[str, Any]):
 
     SubscriptionService.activate_subscription(
         db=db,
-        tenant_id=tenant_id,
-        admin_email=customer.email,
-        stripe_customer_id=customer_id,
-        stripe_subscription_id=subscription_id,
+        tenant_id=str(tenant_id),
+        admin_email=str(getattr(customer, "email", "unknown@stripe.com")),
+        stripe_customer_id=str(customer_id),
+        stripe_subscription_id=str(subscription_id),
         plan_type=plan,
-        period_start=datetime.fromtimestamp(stripe_sub.current_period_start),
-        period_end=datetime.fromtimestamp(stripe_sub.current_period_end),
+        period_start=datetime.fromtimestamp(
+            int(getattr(stripe_sub, "current_period_start"))
+        ),
+        period_end=datetime.fromtimestamp(
+            int(getattr(stripe_sub, "current_period_end"))
+        ),
     )
     await send_payment_confirmation(tenant_id, plan_type=plan.value)
     logger.info(f"Activated subscription for tenant {tenant_id}")
 
 
-async def _handle_payment_succeeded(db: Session, invoice: Dict[str, Any]):
+async def _handle_payment_succeeded(db: Session, invoice: Dict[str, Any]) -> None:
     """Renew subscription after successful payment."""
     subscription_id = invoice.get("subscription")
     sub = (
@@ -161,15 +176,17 @@ async def _handle_payment_succeeded(db: Session, invoice: Dict[str, Any]):
     if sub and isinstance(subscription_id, str):
         stripe_sub = stripe.Subscription.retrieve(subscription_id)
         sub.current_period_start = datetime.fromtimestamp(
-            stripe_sub.current_period_start
-        )
-        sub.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end)
+            getattr(stripe_sub, "current_period_start")
+        )  # type: ignore[assignment]
+        sub.current_period_end = datetime.fromtimestamp(
+            getattr(stripe_sub, "current_period_end")
+        )  # type: ignore[assignment]
         sub.status = TenantStatus.ACTIVE
         db.commit()
         logger.info(f"Renewed subscription for tenant {sub.slug}")
 
 
-async def _handle_payment_failed(db: Session, invoice: Dict[str, Any]):
+async def _handle_payment_failed(db: Session, invoice: Dict[str, Any]) -> None:
     """Mark subscription past due after failed payment."""
     subscription_id = invoice.get("subscription")
     sub = (
@@ -178,14 +195,16 @@ async def _handle_payment_failed(db: Session, invoice: Dict[str, Any]):
         .first()
     )
     if sub:
-        SubscriptionService.mark_past_due(db, sub.slug)
+        SubscriptionService.mark_past_due(db, str(sub.slug))
         await send_payment_failure(
-            sub.slug, retry_url=f"/billing/retry?tenant={sub.slug}"
+            str(sub.slug), retry_url=f"/billing/retry?tenant={sub.slug}"
         )
         logger.warning(f"Marked subscription past due for tenant {sub.slug}")
 
 
-async def _handle_subscription_deleted(db: Session, subscription: Dict[str, Any]):
+async def _handle_subscription_deleted(
+    db: Session, subscription: Dict[str, Any]
+) -> None:
     """Cancel subscription when deleted in Stripe."""
     sub = (
         db.query(Tenant)
@@ -193,17 +212,17 @@ async def _handle_subscription_deleted(db: Session, subscription: Dict[str, Any]
         .first()
     )
     if sub:
-        SubscriptionService.cancel_subscription(db, sub.slug)
+        SubscriptionService.cancel_subscription(db, str(sub.slug))
         logger.info(f"Canceled subscription for tenant {sub.slug}")
 
 
-@router.post("/shopify")
+@router.post("/shopify", response_model=None)
 async def shopify_webhook(
     request: Request,
     x_shopify_topic: str = Header(...),
     x_shopify_shop_domain: str = Header(...),
     x_shopify_hmac_sha256: str = Header(...),
-):
+) -> Union[Dict[str, str], JSONResponse]:
     """FastAPI endpoint to handle Shopify webhook events.
 
     Args:

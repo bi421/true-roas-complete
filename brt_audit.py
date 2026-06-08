@@ -22,13 +22,18 @@ BACKUP_DIR = PROJECT_ROOT / "backups"
 RESTORE_DATA_DIR = PROJECT_ROOT / "data" / "tenants"
 MANIFEST_PATH = PROJECT_ROOT / "verification_manifest.json"
 
+
 def update_manifest(test_summary: str, accuracy: str, math_status: str):
     """
     Updates the verification manifest with live audit results.
     """
     git_hash = "unknown"
     try:
-        git_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
+        git_hash = (
+            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+            .decode()
+            .strip()
+        )
     except Exception:
         git_hash = os.getenv("GITHUB_SHA", "dev")[:7]
 
@@ -38,19 +43,33 @@ def update_manifest(test_summary: str, accuracy: str, math_status: str):
         "git_hash": git_hash,
         "decision_accuracy": accuracy,
         "math_stability": math_status,
-        "environment": "Production-Gate"
+        "environment": "Production-Gate",
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"✅ Manifest updated at {MANIFEST_PATH}")
 
+
 async def verify_restore():
     print("🚀 Starting BRT Audit Procedure...")
-    
+
     # a) PostgreSQL Restore Simulation
     print("Step A: Restoring Central PostgreSQL...")
     # FIX: Check if a specific test record exists after a simulated restore
     # Instead of just checking if DB is ready
-    check_db = subprocess.run(["psql", "-h", "db", "-U", "trueroas_admin", "-d", "trueroas", "-c", "SELECT count(*) FROM tenants;"], capture_output=True)
+    check_db = subprocess.run(
+        [
+            "psql",
+            "-h",
+            "db",
+            "-U",
+            "trueroas_admin",
+            "-d",
+            "trueroas",
+            "-c",
+            "SELECT count(*) FROM tenants;",
+        ],
+        capture_output=True,
+    )
     if check_db.returncode == 0:
         print("✅ PostgreSQL restore verified with data integrity.")
     else:
@@ -62,7 +81,7 @@ async def verify_restore():
     if not BACKUP_DIR.exists():
         print("❌ FAILED: Backup directory missing.")
         return False
-    
+
     # Restore test tenant files
     os.makedirs(RESTORE_DATA_DIR, exist_ok=True)
     # Step B Correction: Physically enforce WAL mode on restored databases
@@ -78,6 +97,7 @@ async def verify_restore():
     print("Step C: Verifying Redis Cache...")
     try:
         import redis
+
         r = redis.from_url(settings.REDIS_URL)
         r.ping()
         print("✅ Redis connectivity confirmed.")
@@ -89,16 +109,16 @@ async def verify_restore():
     print("Step D: Verifying /api/v1/metrics...")
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Use specific token for BRT (refer to auth.py)
-        token = os.getenv("BRT_JWT_TOKEN") 
+        token = os.getenv("BRT_JWT_TOKEN")
         headers = {"Authorization": f"Bearer {token}"}
-        
+
         # FIX: Dynamically calculate accuracy based on real metrics response
         true_roas_val = "N/A"
         resp = await client.get(f"{BASE_URL}/api/v1/metrics", headers=headers)
         accuracy_stat = "0%"
         if resp.status_code == 200:
             data = resp.json()
-            true_roas_val = data.get('true_roas', 'N/A')
+            true_roas_val = data.get("true_roas", "N/A")
             accuracy_stat = f"{data.get('accuracy_score', 95.0)}%"
             print(f"✅ Metrics online. True ROAS: {true_roas_val}")
         else:
@@ -108,11 +128,13 @@ async def verify_restore():
     # e) CSV Export & Checksum Verification
     print("Step E: Verifying CSV Export Checksum...")
     async with httpx.AsyncClient(timeout=30.0) as client:
-        export_resp = await client.get(f"{BASE_URL}/api/v1/export/detailed-audit-csv?days=7", headers=headers)
+        export_resp = await client.get(
+            f"{BASE_URL}/api/v1/export/detailed-audit-csv?days=7", headers=headers
+        )
         if export_resp.status_code != 200:
             print("❌ CSV Export failed.")
             return False
-            
+
         content = export_resp.text
         # Extract HMAC signature from the last line
         lines = content.strip().split("\n")
@@ -120,24 +142,26 @@ async def verify_restore():
         if "SHA-256-HMAC:" not in sig_line:
             print("❌ Compliance signature missing in export.")
             return False
-            
+
         received_sig = sig_line.split(": ")[1]
-        
+
         # Verification: Calculate after removing the last 2 lines (footer)
         csv_body = "\n".join(lines[:-2]) + "\n"
-        
+
         # Recalculate HMAC using tenant salt
         # In test environment, get directly from settings
         tenant_salt = os.getenv("TEST_TENANT_SALT", "test_salt")
         pepper = settings.APP_SECRET_SALT.encode()
         hmac_key = hmac.new(pepper, tenant_salt.encode(), hashlib.sha256).digest()
-        
+
         expected_sig = hmac.new(hmac_key, csv_body.encode(), hashlib.sha256).hexdigest()
-        
+
         if received_sig == expected_sig:
             print("✅ Digital Signature Verified. Data integrity 100%.")
         else:
-            print(f"❌ Checksum mismatch! Expected {expected_sig[:8]}... but got {received_sig[:8]}...")
+            print(
+                f"❌ Checksum mismatch! Expected {expected_sig[:8]}... but got {received_sig[:8]}..."
+            )
             return False
 
     # T-001 Correction: Execute real tests and parse results for the manifest
@@ -145,9 +169,9 @@ async def verify_restore():
     report_file = PROJECT_ROOT / ".test_report_temp.json"
     subprocess.run(
         ["pytest", "--json-report", f"--json-report-file={report_file}", "-q"],
-        capture_output=True
+        capture_output=True,
     )
-    
+
     if report_file.exists():
         test_data = json.loads(report_file.read_text())
         real_test_summary = f"{test_data['summary']['passed']} passed, {test_data['summary']['failed']} failed"
@@ -168,11 +192,12 @@ async def verify_restore():
     update_manifest(
         test_summary=real_test_summary,
         accuracy=accuracy_stat,
-        math_status=f"Verified (Shannon Entropy: {float(entropy_val):.2f})"
+        math_status=f"Verified (Shannon Entropy: {float(entropy_val):.2f})",
     )
 
     print("\n🏆 BRT AUDIT PASSED SUCCESSFULLY.")
     return True
+
 
 if __name__ == "__main__":
     success = asyncio.run(verify_restore())

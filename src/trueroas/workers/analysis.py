@@ -2,6 +2,8 @@
 #  All rights reserved.
 
 import duckdb
+from typing import Any
+
 from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel
 
@@ -21,7 +23,7 @@ class MetricsResponse(BaseModel):
 
 
 @router.get("/metrics", response_model=MetricsResponse)
-@limiter.limit(settings.RATE_LIMIT_METRICS)
+@limiter.limit(settings.RATE_LIMIT_METRICS)  # type: ignore[untyped-decorator]
 async def get_metrics(
     request: Request, x_tenant_id: str = Header("default")
 ) -> MetricsResponse:
@@ -50,7 +52,9 @@ async def get_metrics(
 
 
 @router.get("/truth-gap")
-async def get_truth_gap_chart_data(x_tenant_id: str = Header("default")):
+async def get_truth_gap_chart_data(
+    x_tenant_id: str = Header("default"),
+) -> dict[str, Any]:
     """Returns time-series data optimized for chart rendering."""
     db_path = get_db_path(x_tenant_id)
     with duckdb.connect(db_path, read_only=True) as con:

@@ -5,56 +5,85 @@
 import json
 import logging
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, List
-
-try:
-    from cachetools.func import ttl_cache
-except ModuleNotFoundError:
-    from functools import lru_cache
-
-    def ttl_cache(*args: Any, **kwargs: Any):
-        return lru_cache(maxsize=kwargs.get("maxsize", 128))
+from typing import Any, Dict, List, Union
 
 logger = logging.getLogger("trueroas.strategy")
 
 
 class StrategyContentService:
-    """
-    Provides tactical steps and strategic roadmaps tailored for Meta Andromeda
-    and Advantage+ synergy.
-    Separates presentation logic from core Bayesian inference.
-    """
+    """Provides tactical steps and strategic roadmaps tailored for Meta Andromeda."""
 
-    # Production Optimization: Moved narratives to a dictionary structure
-    # that can be easily externalized to a JSON file for i18n/localization.
-    NARRATIVE_TEMPLATES = {
+    NARRATIVE_TEMPLATES: Dict[str, Dict[str, str]] = {
         "en": {
-            "STRONG_SCALE": "AI Analysis: We've identified a verified window for growth. With a {confidence} decision certainty, your performance is stable. Reconciled data shows a real ROAS of {real_roi}. Suggesting a budget lift of +{scaling_intensity} to maximize returns.",
-            "CAUTIOUS_SCALE": "AI Observation: Positive trend detected, but evidence is stabilizing. Path to {real_roi} ROAS is visible. Recommend a step-by-step {bottleneck} optimization over the next 48 hours.",
-            "REDUCE_OR_HOLD": "AI Alert: Capital preservation is priority. Risk Level: {risk_level}. Attribution signals are {variance_pct} ahead of bank-truth. To stop ${capital_bleed_usd} daily bleed, hold spend until signals align.",
-        }
+            "STRONG_SCALE": (
+                "AI Analysis: We've identified a verified window for growth. "
+                "With a {confidence} decision certainty, your performance is stable. "
+                "Reconciled data shows a real ROAS of {real_roi}. "
+                "Suggesting a budget lift of +{scaling_intensity} to maximize returns."
+            ),
+            "CAUTIOUS_SCALE": (
+                "AI Observation: Positive trend detected, but evidence is stabilizing. "
+                "Path to {real_roi} ROAS is visible. Recommend a step-by-step {bottleneck} "
+                "optimization over the next 48 hours."
+            ),
+            "REDUCE_OR_HOLD": (
+                "AI Alert: Capital preservation is priority. Risk Level: {risk_level}. "
+                "Attribution signals are {variance_pct} ahead of bank-truth. "
+                "To stop ${capital_bleed_usd} daily bleed, hold spend until signals align."
+            ),
+        },
+        "dashboard": {
+            "HEALTHY": (
+                "Your capital is deployed efficiently. The variance between platform data and bank-truth "
+                "is within acceptable limits. You have a green light to maintain or strategically increase "
+                "spend in high-confidence pockets."
+            ),
+            "WARNING": (
+                "We detected a divergence in attribution. Meta is reporting higher success than your bank "
+                "account confirms. Suggest holding current budget levels and auditing creative performance "
+                "before further scaling."
+            ),
+            "BLEEDING": (
+                "Critical Variance Detected: Your ad spend is currently outpacing verified revenue. "
+                "Significant budget waste identified. Immediate reduction of inefficient campaign budgets is "
+                "required to protect your margins."
+            ),
+            "INITIALIZING": (
+                "Data Engine Synchronizing: We are currently reconciling your first set of local proofs. "
+                "Your strategic roadmap will be available shortly."
+            ),
+        },
     }
 
     @staticmethod
-    def generate_post_mortem(decision_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Reports the outcome of business decisions (Profit/Loss) clearly to the Founder.
-        """
-        # Attempt to find the most mature actual ROAS available (90d -> 30d -> 7d)
+    def generate_post_mortem(
+        decision_input: Union[Dict[str, Any], str],
+    ) -> Dict[str, Any]:
+        """Reports the outcome of business decisions (Profit/Loss) clearly to the Founder."""
+
+        if isinstance(decision_input, str):
+            decision_data: Dict[str, Any] = json.loads(decision_input)
+        else:
+            decision_data = decision_input
+
         actual_roas_val = next(
-            (decision_data.get(k) for k in ["actual_roas_90d", "actual_roas_30d", "actual_roas_7d"] 
-             if decision_data.get(k) is not None), 
-            0.0
+            (
+                decision_data.get(k)
+                for k in ["actual_roas_90d", "actual_roas_30d", "actual_roas_7d"]
+                if decision_data.get(k) is not None
+            ),
+            0.0,
         )
         dec_actual = Decimal(str(actual_roas_val))
 
         if dec_actual < Decimal("0.1"):
             return {
                 "status": "insufficient_data",
-                "message": "Verification requires a minimum realized ROAS of 0.1 to maintain statistical integrity.",
+                "message": (
+                    "Verification requires a minimum realized ROAS of 0.1 to maintain statistical integrity."
+                ),
             }
 
-        # Fix 4: Robust key access
         expected_roas_val = decision_data.get("expected_roas", 0.0)
         assumptions = decision_data.get("assumptions_json", {})
         incremental_spend = assumptions.get("proposed_increase", 0.0)
@@ -68,7 +97,6 @@ class StrategyContentService:
         )
         outcome_usd = float(outcome)
 
-        # Calculate attribution variance for insights
         actual_roas_float = float(dec_actual)
         variance = (meta_roas_at_time - actual_roas_float) / max(actual_roas_float, 0.1)
         overstatement = max(variance, 0.0)
@@ -103,10 +131,6 @@ class StrategyContentService:
         capital_bleed_usd: str = "0.00",
         **_: Any,
     ) -> str:
-        """
-        Translates cold metrics into a high-level executive narrative.
-        Fix 4: Refactored to use templates for easier localization.
-        """
         templates = StrategyContentService.NARRATIVE_TEMPLATES.get(
             lang, StrategyContentService.NARRATIVE_TEMPLATES["en"]
         )
@@ -120,10 +144,15 @@ class StrategyContentService:
                 risk_level=risk_level,
                 scaling_intensity=scaling_intensity,
                 variance_pct=variance_pct,
-                capital_bleed_usd=capital_bleed_usd
+                capital_bleed_usd=capital_bleed_usd,
             )
         except KeyError:
             return "Strategic analysis in progress..."
+
+    @staticmethod
+    def get_dashboard_summary(status: str, lang: str = "en") -> str:
+        dashboard_templates = StrategyContentService.NARRATIVE_TEMPLATES["dashboard"]
+        return dashboard_templates.get(status, dashboard_templates["INITIALIZING"])
 
     @staticmethod
     def get_merchant_verdict(
@@ -131,22 +160,28 @@ class StrategyContentService:
         variance_pct: float,
         confidence: float,
         incremental_spend: float = 0.0,
-        **kwargs: Any,
+        **_: Any,
     ) -> str:
-        """
-        Translates technical metrics into a one-sentence simple verdict.
-        Fix 5: Calculated Capital at Risk dynamically based on spend and variance.
-        """
         if action == "REDUCE_OR_HOLD":
-            # Link to AdSpendBreaker logic: calculate real exposure
             capital_at_risk = round(incremental_spend * variance_pct, 2)
 
             if variance_pct > 0.3:
-                return f"🛡️ Growth Verification: ${capital_at_risk:,.2f} requires alignment. Attribution signals are {variance_pct:.0%} ahead of bank-truth evidence. Scaling is currently unverified."
-            return "🛡️ Risk Mitigation: Maintain current spend. Our Strategic Memory identifies that scaling in these specific conditions has a high historical failure rate."
+                return (
+                    f"🛡️ Growth Verification: ${capital_at_risk:,.2f} requires alignment. "
+                    f"Attribution signals are {variance_pct:.0%} ahead of bank-truth evidence. "
+                    "Scaling is currently unverified."
+                )
+            return (
+                "🛡️ Risk Mitigation: Maintain current spend. "
+                "Our Strategic Memory identifies that scaling in these specific conditions has a "
+                "high historical failure rate."
+            )
 
         if action == "STRONG_SCALE":
-            return f"🚀 Verified Opportunity: {confidence:.0%} Decision Accuracy floor. Risk-adjusted EV supports a budget lift with high statistical certainty."
+            return (
+                f"🚀 Verified Opportunity: {confidence:.0%} Decision Accuracy floor. "
+                "Risk-adjusted EV supports a budget lift with high statistical certainty."
+            )
 
         if action == "CAUTIOUS_SCALE":
             return "⚖️ Note: Positive trend detected, but evidence is still stabilizing. Scale gradually."
@@ -157,7 +192,6 @@ class StrategyContentService:
     def get_planning_advice(
         accuracy_score: float, bias: float, trend_delta: float
     ) -> List[str]:
-        """Reintroduced missing service method."""
         return [
             f"Historical Accuracy: {accuracy_score}%",
             f"Bias: {bias}",
@@ -166,58 +200,50 @@ class StrategyContentService:
 
     @staticmethod
     def get_tactical_steps(
-        action: str, incremental_spend: float = 0.0, bottleneck_layer: str = "Performance"
+        action: str,
+        incremental_spend: float = 0.0,
+        bottleneck_layer: str = "Performance",
     ) -> List[str]:
-        """
-        Generates short, actionable tactical steps for the merchant.
-        """
         if action == "REDUCE_OR_HOLD":
             return [
                 f"🚨 Immediate Action: Pause ad sets exceeding ${incremental_spend:,.2f} daily bleed where variance is >30%.",
                 f"🔍 Integrity Audit: Cross-reference Shopify Transaction IDs with Meta's {bottleneck_layer} signals.",
-                "📉 Capital Preservation: Re-allocate budget to verified stable baseline campaigns."
+                "📉 Capital Preservation: Re-allocate budget to verified stable baseline campaigns.",
             ]
-        elif action == "STRONG_SCALE":
+        if action == "STRONG_SCALE":
             return [
                 f"🚀 Scale Protocol: Increase daily budget by 15% (Target: +${incremental_spend * 0.15:,.2f}/day).",
                 "📊 Vigilance: Monitor real-time Shopify clearing rate vs. Meta's reported ROAS every 6 hours.",
-                "🎨 Asset Readiness: Deploy fresh creative iterations to mitigate frequency fatigue during scaling."
+                "🎨 Asset Readiness: Deploy fresh creative iterations to mitigate frequency fatigue during scaling.",
             ]
-        elif action == "CAUTIOUS_SCALE":
+        if action == "CAUTIOUS_SCALE":
             return [
                 "Increase budget by 5-10% gradually.",
                 "Monitor ROAS and variance daily.",
                 "Test new creative variations to improve efficiency.",
             ]
+
         return ["Review data and consult with your TrueROAS analyst."]
 
     @staticmethod
     def get_strategic_roadmap(action: str) -> List[str]:
-        """
-        Provides a longer-term strategic roadmap for the merchant.
-        """
         if action == "STRONG_SCALE":
             return [
                 "✅ Step 1: Increase daily budget by 15% in Meta Ads Manager immediately.",
                 "✅ Step 2: Upload 2-3 new high-quality images to keep the performance stable.",
                 "✅ Step 3: Check your warehouse stock. Ensure you have enough units for the next 30 days.",
             ]
-        else:  # REDUCE_OR_HOLD or CAUTIOUS_SCALE
-            return [
-                "⚠️ Action 1: Pause any ad sets where the ROAS is below 1.5x right now.",
-                "⚠️ Action 2: Don't increase budget today. Wait for our next update in 24 hours.",
-                "⚠️ Action 3: Review your website checkout flow. People are clicking but not buying as expected.",
-            ]
+
+        return [
+            "⚠️ Action 1: Pause any ad sets where the ROAS is below 1.5x right now.",
+            "⚠️ Action 2: Don't increase budget today. Wait for our next update in 24 hours.",
+            "⚠️ Action 3: Review your website checkout flow. People are clicking but not buying as expected.",
+        ]
 
     @staticmethod
     def calculate_profit_optimization_potential(
         platform_roas: float, verified_roas: float, incremental_spend: float
     ) -> Dict[str, Any]:
-        """
-        Calculates the profit optimization potential by reconciling signals.
-        """
-        # Logic: If we scale on signals that aren't verified, we risk capital.
-        # Reconciling ensures every dollar scaled goes into high-certainty campaigns.
         dec_platform = Decimal(str(platform_roas))
         dec_verified = Decimal(str(verified_roas))
         dec_spend = Decimal(str(incremental_spend))
@@ -235,9 +261,6 @@ class StrategyContentService:
 
     @staticmethod
     def get_advantage_plus_scenario_blurb() -> str:
-        """
-        Highlights synergy with Meta Advantage+.
-        """
         return (
             "Scenario: Meta Advantage+ identifies a scaling opportunity and increases daily spend from $2k to $8k. "
             "TrueROAS acts as the financial anchor, reconciling the real-time revenue clearing Shopify. "
@@ -248,9 +271,6 @@ class StrategyContentService:
 
     @staticmethod
     def get_andromeda_synergy_roadmap() -> List[str]:
-        """
-        Strategic roadmap for working with Meta's AI algorithms.
-        """
         return [
             "Step 1: Allow Meta Advantage+ to identify initial broad signals.",
             "Step 2: Use TrueROAS Bayesian Engine to verify the bank-truth ROAS of those signals.",

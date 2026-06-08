@@ -66,7 +66,7 @@ class MarketDecisionEngine:
         potential_waste = 0.0
 
         if expected_roi < Settings.breakeven_roi * 0.8:
-            recommendation = "REDUCE/PAUSE"
+            recommendation = "REDUCE_OR_HOLD"
             expected_profit = current_budget * -0.3
         elif (
             success_prob > Settings.scaling_probability_threshold
@@ -84,7 +84,7 @@ class MarketDecisionEngine:
 
         # Generate the AI Narrative using the StrategyContentService
         narrative = StrategyContentService.generate_ai_narrative(
-            action=recommendation.replace("/", "_OR_"),  # Standardize key for map
+            action=recommendation,  # Standardize key for map
             confidence=f"{success_prob:.1%}",
             real_roi=f"{real_roi}x",
             expected_value=f"${expected_profit:,.2f}",
@@ -105,7 +105,7 @@ class MarketDecisionEngine:
             "risk_audit": {
                 "bot_score": audit_result["risk_score"],
                 "warning_items": audit_result["warning_items"],
-                "data_reliability": f"{audit_result['data_reliability']*100:.0f}%",
+                "data_reliability": f"{audit_result['data_reliability'] * 100:.0f}%",
             },
             "executive_ledger": {
                 "breakeven_point": Settings.breakeven_roi,
@@ -115,7 +115,9 @@ class MarketDecisionEngine:
                 "suggested_adjustment": (
                     "+20%"
                     if recommendation == "STRONG_SCALE"
-                    else "-50%" if "REDUCE" in recommendation else "0%"
+                    else "-50%"
+                    if "REDUCE" in recommendation
+                    else "0%"
                 ),
                 "merchant_insight": (
                     f"By following this advice, you could gain ${max(0, expected_profit):,.2f} in new profit "

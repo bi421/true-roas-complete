@@ -2,14 +2,13 @@ import duckdb
 from datetime import timedelta
 
 
-def reconcile_past_decisions(db_path: str, tenant_id: str) -> None:
+def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None:
     """Performs automated reconciliation at 7, 30, and 90-day intervals.
 
     Applies variable tolerance based on window maturity.
 
     Args:
         db_path (str): The path to the tenant's DuckDB warehouse.
-        tenant_id (str): The unique tenant identifier.
     """
     with duckdb.connect(db_path) as con:
         # Windows to reconcile: (days_ago, column_suffix, tolerance)

@@ -14,7 +14,7 @@ HEADERS = {
 IGNORE_DIRS = {".git", "__pycache__", "venv", "node_modules", "data"}
 
 
-def apply_copyright(root_dir: Path):
+def apply_copyright(root_dir: Path) -> None:
     """
     Recursively applies the copyright header to all supported source files.
     """

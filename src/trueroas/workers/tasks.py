@@ -1,29 +1,37 @@
 import hashlib
-import hmac
 import json
 import logging
 import os
 import subprocess
-import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
+from typing import Any, Dict, Tuple
 import duckdb
 import redis
 import stripe
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import setup_logging, task_failure, task_postrun
-from duckdb import Error as DuckDBError
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import Counter, Gauge, Histogram, REGISTRY
 from pythonjsonlogger import jsonlogger
 
-from src.trueroas.core.breaker import AdSpendBreaker
 from src.trueroas.core.config import settings
 from src.trueroas.core.email_service import send_email, render_template
 
-DECISION_LATENCY = Histogram(
+
+def _get_or_create_metric(
+    metric_class: type, name: str, doc: str, labels: list[str], **kwargs: Any
+) -> Any:
+    """Returns existing metric if already registered, otherwise creates it."""
+    try:
+        return metric_class(name, doc, labels, **kwargs)
+    except ValueError:
+        return REGISTRY._names_to_collectors.get(name)
+
+
+DECISION_LATENCY: Histogram = _get_or_create_metric(
+    Histogram,
     "trueroas_decision_latency_seconds",
     "Latency of Bayesian reconciliation",
     ["tenant_id"],
@@ -48,33 +56,36 @@ DECISION_LATENCY = Histogram(
         float("inf"),
     ),
 )
-CELERY_TASKS_COMPLETED_TOTAL = Counter(
+CELERY_TASKS_COMPLETED_TOTAL: Counter = _get_or_create_metric(
+    Counter,
     "celery_tasks_completed_total",
     "Total Celery tasks completed",
     ["task_name", "status"],
 )
-
-TENANT_DATABASE_SIZE_BYTES = Gauge(
+TENANT_DATABASE_SIZE_BYTES: Gauge = _get_or_create_metric(
+    Gauge,
     "tenant_database_size_bytes",
     "Size of tenant SQLite databases in bytes",
     ["tenant_id", "type"],
 )
-
-TENANT_WAL_SIZE_BYTES = Gauge(
+TENANT_WAL_SIZE_BYTES: Gauge = _get_or_create_metric(
+    Gauge,
     "trueroas_tenant_db_wal_size_bytes",
     "Size of SQLite WAL files in bytes",
     ["tenant_id"],
 )
-
-META_API_429_TOTAL = Counter(
-    "meta_api_429_total", "Total Meta Graph API rate limit (429) errors", ["tenant_id"]
+META_API_429_TOTAL: Counter = _get_or_create_metric(
+    Counter,
+    "meta_api_429_total",
+    "Total Meta Graph API rate limit (429) errors",
+    ["tenant_id"],
 )
 
 
-@setup_logging.connect
-def config_loggers(*args, **kwargs):
+@setup_logging.connect  # type: ignore[untyped-decorator]
+def config_loggers(*args: Any, **kwargs: Any) -> None:
     handler = logging.StreamHandler()
-    formatter = jsonlogger.JsonFormatter(
+    formatter = jsonlogger.JsonFormatter(  # type: ignore[no-untyped-call]
         "%(timestamp)s %(level)s %(name)s %(message)s %(request_id)s",
         rename_fields={"asctime": "timestamp", "levelname": "level"},
     )
@@ -86,10 +97,12 @@ def config_loggers(*args, **kwargs):
 
 logger = logging.getLogger("trueroas.tasks")
 celery_app = Celery("trueroas", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
 
 
-def _sanitize_task_args(args: tuple, kwargs: dict, task_name: str) -> dict:
+def _sanitize_task_args(
+    args: tuple[Any, ...], kwargs: dict[str, Any], task_name: str
+) -> dict[str, Any]:
     """Redacts PII from task metadata before logging.
 
     Args:
@@ -121,8 +134,16 @@ def _sanitize_task_args(args: tuple, kwargs: dict, task_name: str) -> dict:
 
 
 # Celery Task Observability Signals
-@task_postrun.connect
-def on_task_postrun(task_id, task, args, kwargs, retval, state, **kwargs_signal):
+@task_postrun.connect  # type: ignore[untyped-decorator]
+def on_task_postrun(
+    task_id: str,
+    task: Any,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    retval: Any,
+    state: str,
+    **kwargs_signal: Any,
+) -> None:
     runtime = kwargs_signal.get("runtime", 0)
     tenant_id = kwargs.get("tenant_id", args[0] if args else "unknown")
     log_meta = _sanitize_task_args(args, kwargs, task.name)
@@ -140,15 +161,25 @@ def on_task_postrun(task_id, task, args, kwargs, retval, state, **kwargs_signal)
     CELERY_TASKS_COMPLETED_TOTAL.labels(task_name=task.name, status=state).inc()
 
 
-@task_failure.connect
+@task_failure.connect  # type: ignore[untyped-decorator]
 def on_task_failure(
-    task_id, exception, args, kwargs, traceback, einfo, **kwargs_signal
-):
+    task_id: str,
+    exception: Exception,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    traceback: Any,
+    einfo: Any,
+    **kwargs_signal: Any,
+) -> None:
     tenant_id = kwargs.get("tenant_id", args[0] if args else "unknown")
-    log_meta = _sanitize_task_args(args, kwargs, kwargs_signal.get("sender").name)
+    sender: Any = kwargs_signal.get("sender")
+    task_name = getattr(sender, "name", "unknown") if sender else "unknown"
+    log_meta = _sanitize_task_args(args, kwargs, task_name)
 
+    sender = kwargs_signal.get("sender")
+    sender_name = getattr(sender, "name", "unknown") if sender else "unknown"
     logger.error(
-        f"Task Failure: {kwargs_signal.get('sender').name}",
+        f"Task Failure: {sender_name}",
         extra={
             "task_id": task_id,
             "exception": str(exception),
@@ -203,141 +234,10 @@ celery_app.conf.update(
 
 
 # 2. Task Routing and Priority Assignment
-@celery_app.task(
-    bind=True,
-    max_retries=10,
-    queue="high",
-    autoretry_for=(DuckDBError, redis.exceptions.LockError),
-    retry_backoff=True,
-    retry_jitter=True,
-)
-def sync_meta_data(
-    self,
-    tenant_id: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    request_id: Optional[str] = None,
-):
-    """Synchronizes Meta marketing data with the tenant warehouse.
-
-    Args:
-        tenant_id (str): Unique identifier for the tenant.
-        start_date (str, optional): Start date for data sync.
-        end_date (str, optional): End date for data sync.
-        request_id (str, optional): Traceability ID for log correlation.
-
-    Returns:
-        dict: Status of the synchronization job.
-    """
-    # Create an adapter to inject the correlated request_id into every log line of this task
-    task_logger = logging.LoggerAdapter(logger, {"request_id": request_id})
-    started_at = datetime.now()
-
-    try:
-        from src.trueroas.core.database import SessionLocal, get_db_path
-        from src.trueroas.core.subscriptions import Tenant
-
-        # State Law compliance check: Use context manager to prevent pool exhaustion
-        with SessionLocal() as central_db:
-            tenant = central_db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-            auto_pause_enabled = tenant.auto_pause_enabled if tenant else False
-            dnt_active = tenant.do_not_track if tenant else False
-
-        task_logger.info(
-            f"Starting meta sync for tenant {tenant_id} (DNT: {dnt_active})"
-        )
-
-        # P0 FIX #1: Meta API Rate Limiting (Prevent $50k Ban Risk)
-        rate_key = f"meta_rate:{tenant_id}"
-        current_calls = redis_client.incr(rate_key)
-        if current_calls == 1:
-            redis_client.expire(rate_key, 3600)  # 1 hour sliding window
-
-        if current_calls > 180:  # 90% threshold for safety margin
-            META_API_429_TOTAL.labels(tenant_id=tenant_id).inc()
-            task_logger.warning(
-                f"Rate limit safety buffer hit for {tenant_id}. Backing off."
-            )
-            raise self.retry(
-                countdown=120, exc=Exception("Meta Rate Limit Buffer Active")
-            )
-
-        # P0 FIX #2: Infrastructure Circuit Breaker
-        CB_KEY = "meta_api_circuit_breaker"
-        if redis_client.get(CB_KEY):
-            task_logger.error(
-                "Meta API Circuit Breaker is OPEN. Skipping sync to preserve worker pool."
-            )
-            return {"status": "skipped", "reason": "circuit_open"}
-
-        from src.trueroas.workers.meta_sync import sync_meta
-
-        db_path = get_db_path(tenant_id)
-
-        try:
-            sync_result = sync_meta(db_path)
-        except Exception as e:
-            # Track failures to potentially open circuit (5 failures in 5 mins)
-            fail_key = "meta_api_failures_global"
-            fails = redis_client.incr(fail_key)
-            if fails == 1:
-                redis_client.expire(fail_key, 300)
-            if fails >= 5:
-                redis_client.setex(CB_KEY, 600, "1")  # 10 minute cooldown
-                task_logger.critical(
-                    "Global Meta API Circuit Breaker OPENED due to consecutive failures."
-                )
-            raise e
-
-        # Requirement 1: Write to job_audit_log
-        completed_at = datetime.now()
-        # P1 FIX: Use actual sync counts for SOC2 audit integrity
-        records_processed = sync_result.get("records_processed", 0)
-
-        # High-Integrity HMAC for Audit Trail (SOC2 requirement)
-        # For business owners: This checksum verifies that the data is not falsified.
-        audit_msg = f"AUDIT_VERIFICATION:{tenant_id}:{started_at.isoformat()}:{records_processed}"
-        checksum = hmac.new(
-            settings.APP_SECRET_SALT.encode(), audit_msg.encode(), hashlib.sha256
-        ).hexdigest()
-
-        # Business Logic: Calculate the difference between Meta's overstated ROAS and true ROAS 
-        # to show the "Capital Saved" to the business owner.
-        variance_pct = sync_result.get("variance_pct", 0)
-        total_spend = sync_result.get("total_spend", 0)
-        capital_saved = (total_spend * (variance_pct / 100)) if variance_pct > 0 else 0
-        
-        if capital_saved > 0:
-            redis_client.incrbyfloat(f"breaker:spend_saved_total:{tenant_id}", capital_saved)
-
-        from src.trueroas.core.database import DatabaseFactory
-
-        engine = DatabaseFactory.get_engine(tenant_id)
-        from sqlalchemy import text
-        with engine.begin() as conn:
-            conn.execute(
-                text("""
-                    INSERT INTO job_audit_log (id, tenant_id, job_type, started_at, completed_at, records_processed, checksum, operator, metadata_json)
-                    VALUES (:id, :tid, 'META_SYNC', :start, :end, :count, :sig, 'system', :meta)
-                """),
-                {
-                    "id": str(uuid.uuid4()),
-                    "tid": tenant_id,
-                    "start": started_at,
-                    "end": completed_at,
-                    "count": records_processed,
-                    "sig": checksum,
-                    "meta": json.dumps({"capital_saved": round(capital_saved, 2)})
-                }
-            )
-
-        return {"status": "success", "tenant": tenant_id, "records": records_processed}
-    except (DuckDBError, redis.exceptions.LockError) as exc:
-        raise exc  # autoretry_for will handle this
 
 
-@celery_app.task(queue="low")
-def generate_pdf_report_task(tenant_id: str, data: dict):
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def generate_pdf_report_task(tenant_id: str, data: Dict[str, Any]) -> str:
     """Asynchronously generates a PDF audit report.
 
     Args:
@@ -347,7 +247,7 @@ def generate_pdf_report_task(tenant_id: str, data: dict):
     Returns:
         str: Path or ID of the generated PDF.
     """
-    from src.trueroas.services.pdf_service import pdf_service
+    from src.trueroas.pdf_service import pdf_service
 
     return pdf_service.generate_report(tenant_id, data)
 
@@ -356,8 +256,8 @@ def generate_pdf_report_task(tenant_id: str, data: dict):
 generate_pdf_report = generate_pdf_report_task
 
 
-@celery_app.task(queue="low")
-def vacuum_databases():
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def vacuum_databases() -> None:
     """Performs a scheduled weekly manual VACUUM on all tenant databases.
 
     Optimizes SQLite performance and manages WAL journal sizes across all tenants.
@@ -386,8 +286,8 @@ def vacuum_databases():
                 logger.error(f"Failed to vacuum database for tenant {tenant_slug}: {e}")
 
 
-@celery_app.task(queue="low")
-def monitor_db_sizes():
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def monitor_db_sizes() -> None:
     """Monitors tenant database sizes and alerts on threshold violations.
 
     Checks both DB and WAL file sizes against operational limits (500MB/100MB).
@@ -416,9 +316,9 @@ def monitor_db_sizes():
             if wal_path.exists():
                 wal_size_bytes = os.path.getsize(wal_path)
                 wal_size_mb = wal_size_bytes / (1024 * 1024)
-                TENANT_DATABASE_SIZE_BYTES.labels(tenant_id=tenant_slug, type="wal").set(
-                    wal_size_bytes
-                )
+                TENANT_DATABASE_SIZE_BYTES.labels(
+                    tenant_id=tenant_slug, type="wal"
+                ).set(wal_size_bytes)
                 TENANT_WAL_SIZE_BYTES.labels(tenant_id=tenant_slug).set(wal_size_bytes)
                 if wal_size_mb > 100:
                     logger.critical(
@@ -433,8 +333,8 @@ def monitor_db_sizes():
                         logger.error(f"WAL Checkpoint failed for {t.slug}: {e}")
 
 
-@celery_app.task(queue="low")
-def reconcile_all_tenants_window(window_days: int):
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def reconcile_all_tenants_window(window_days: int) -> None:
     """Triggers the reconciliation pipeline for all tenants for a given window.
 
     Args:
@@ -449,91 +349,24 @@ def reconcile_all_tenants_window(window_days: int):
         for t in tenants:
             tenant_slug = str(t.slug)
             db_path = get_db_path(tenant_slug)
-            reconcile_past_decisions(db_path, tenant_slug)
+            reconcile_past_decisions(db_path)
             logger.info(
                 f"Reconciliation triggered for {tenant_slug} (Window: {window_days}d)"
             )
 
 
-@celery_app.task(queue="low")
-def cleanup_logs_task():
-    """SOC2 + CCPA compliant cleanup of PII and database logs."""
-    from datetime import datetime, timedelta, timezone
-
-    from sqlalchemy import text
-
-    from src.trueroas.core.database import SessionLocal, get_db_session
-    from src.trueroas.core.migrations import cleanup_old_logs
-    from src.trueroas.core.subscriptions import Tenant
-
-    # 1. Clean up file-based migration logs
-    cleanup_old_logs()
-
-    # 2. Database PII purge – CCPA Article 1798.105
-    # 90-day retention policy for raw transaction data and platform insights
-    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-
-    # Requirement: Context manager for central DB to avoid BFCM pool exhaustion
-    with SessionLocal() as central_db:
-        tenants = central_db.query(Tenant).all()
-        for tenant in tenants:
-            job_started_at = datetime.now()
-            tenant_id = tenant.slug
-
-            # Requirement 3: Use context manager and atomic transaction for PII purge
-            with get_db_session(tenant_id) as db:
-                try:
-                    with db.begin():
-                        # Purge order data containing PII metadata (Requirement 2)
-                        deleted_orders = db.execute(
-                            text("DELETE FROM orders WHERE created_at < :cutoff"),
-                            {"cutoff": cutoff},
-                        ).rowcount
-
-                        # Purge raw platform insights while preserving Decision Audit logs (Version 11)
-                        deleted_metrics = db.execute(
-                            text(
-                                "DELETE FROM historical_metrics WHERE clean_date < :cutoff AND is_platform_data = TRUE"
-                            ),
-                            {"cutoff": cutoff.date()},
-                        ).rowcount
-
-                        # Financial Compliance Audit: High-Integrity HMAC Signature
-                        records_processed = deleted_orders + deleted_metrics
-                        completed_at = datetime.now()
-
-                        audit_msg = f"{tenant_id}:{job_started_at.isoformat()}:{records_processed}"
-                        checksum = hmac.new(
-                            settings.APP_SECRET_SALT.encode(),
-                            audit_msg.encode(),
-                            hashlib.sha256,
-                        ).hexdigest()
-
-                        # Persist to immutable job_audit_log within the same transaction
-                        db.execute(
-                            text("""
-                            INSERT INTO job_audit_log (id, tenant_id, job_type, started_at, completed_at, records_processed, checksum, operator)
-                            VALUES (:id, :tid, 'PII_PURGE', :start, :end, :count, :sig, 'system')
-                        """),
-                            {
-                                "id": str(uuid.uuid4()),
-                                "tid": tenant_id,
-                                "start": job_started_at,
-                                "end": completed_at,
-                                "count": records_processed,
-                                "sig": checksum,
-                            },
-                        )
-                    # Transaction commits automatically
-                except Exception as e:
-                    logger.error(f"CCPA Purge failed for tenant {tenant_id}: {e}")
-                    # Rollback is automatic with db.begin() context manager
-
-    logger.info("Weekly SOC2/CCPA compliant cleanup completed.")
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def cleanup_logs_task() -> None:
+    """Control Plane-ийн баталгаажсан proof-үүдийг цэвэрлэх."""
+    with duckdb.connect("data/central_leads.duckdb") as con:
+        con.execute(
+            "DELETE FROM compute_proofs WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '90 days'"
+        )
+    logger.info("Historical compute proofs cleaned.")
 
 
-@celery_app.task(queue="low")
-def monitor_queue_depth():
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def monitor_queue_depth() -> None:
     """Monitors Celery queue depths in Redis and alerts on backlogs.
 
     Triggers critical alerts if queue depth exceeds 1000 tasks.
@@ -548,8 +381,10 @@ def monitor_queue_depth():
         # Metric export would typically happen here if using Pushgateway
 
 
-@celery_app.task(queue="medium")
-def send_nurture_email_task(email: str, name: str, template_id: str, subject: str):
+@celery_app.task(queue="medium")  # type: ignore[untyped-decorator]
+def send_nurture_email_task(
+    email: str, name: str, template_id: str, subject: str
+) -> None:
     """Individual task to send a marketing nurture email via Resend.
 
     Args:
@@ -566,8 +401,10 @@ def send_nurture_email_task(email: str, name: str, template_id: str, subject: st
     logger.info(f"Nurture sequence email processed for {email} (Local-mode active)")
 
 
-@celery_app.task(queue="medium")
-def start_nurture_sequence_task(email: str, name: str, hashed_email: str):
+@celery_app.task(queue="medium")  # type: ignore[untyped-decorator]
+def start_nurture_sequence_task(
+    email: str, name: str, hashed_email: str
+) -> dict[str, str]:
     """Schedules the 5-email nurture drip sequence for new leads.
 
     Args:
@@ -614,8 +451,10 @@ def start_nurture_sequence_task(email: str, name: str, hashed_email: str):
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_jitter=True,
-)
-def process_shopify_webhook_task(self, tenant_id: str, topic: str, payload: dict):
+)  # type: ignore[untyped-decorator]
+def process_shopify_webhook_task(
+    self: Any, tenant_id: str, topic: str, payload: Dict[str, Any]
+) -> Dict[str, Any]:
     """Processes Shopify webhooks with normalization and idempotency checks.
 
     Args:
@@ -668,7 +507,7 @@ def process_shopify_webhook_task(self, tenant_id: str, topic: str, payload: dict
     # 3. Currency Normalization to USD (Authoritative FX source per FTC §314.4(c))
     currency = payload.get("currency", "USD")
     total_price = float(payload.get("total_price", 0))
-    
+
     cached_fx = redis_client.hgetall("fx_rates")
     if cached_fx:
         rates = {k: float(v) for k, v in cached_fx.items()}
@@ -707,7 +546,7 @@ def process_shopify_webhook_task(self, tenant_id: str, topic: str, payload: dict
             )
 
         # Trigger re-reconciliation for affected windows
-        reconcile_past_decisions(get_db_path(tenant_id), tenant_id)
+        reconcile_past_decisions(str(get_db_path(tenant_id)))
 
         # Cache successful processing (24h TTL)
         redis_client.set(idempotency_key, "1", ex=86400)
@@ -717,8 +556,8 @@ def process_shopify_webhook_task(self, tenant_id: str, topic: str, payload: dict
         raise
 
 
-@celery_app.task(queue="low")
-def purge_deleted_tenants_task():
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def purge_deleted_tenants_task() -> None:
     """Purges tenants soft-deleted more than 30 days ago.
 
     Cascades data deletion across SQLite, PostgreSQL, Redis, Stripe, and Resend.
@@ -736,7 +575,7 @@ def purge_deleted_tenants_task():
             logger.info(f"Purging all data for tenant: {tenant.slug}")
 
             # 1. Cascade: Remove SQLite file
-            db_path = db_layer.get_warehouse_path(tenant.slug)
+            db_path = db_layer.get_warehouse_path(str(tenant.slug))
             if db_path.exists():
                 db_path.unlink(missing_ok=True)
                 # Clean up WAL journals
@@ -753,18 +592,18 @@ def purge_deleted_tenants_task():
                 redis_client.delete(*keys)
 
             # 4. Cascade: Resend Contact Deletion
-            if tenant.admin_email:
+            if str(tenant.admin_email):
                 try:
-                    delete_contact(tenant.admin_email)
+                    delete_contact(str(tenant.admin_email))
                 except Exception as e:
                     logger.error(
                         f"Failed to delete Resend contact for {tenant.slug}: {e}"
                     )
 
             # 5. Cascade: Stripe Customer Deletion
-            if tenant.stripe_customer_id:
+            if str(tenant.stripe_customer_id):
                 try:
-                    stripe.Customer.delete(tenant.stripe_customer_id)
+                    stripe.Customer.delete(str(tenant.stripe_customer_id))
                 except Exception as e:
                     logger.error(
                         f"Failed to delete Stripe customer for {tenant.slug}: {e}"
@@ -778,8 +617,8 @@ def purge_deleted_tenants_task():
             )
 
 
-@celery_app.task(queue="high")
-def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str):
+@celery_app.task(queue="high")  # type: ignore[untyped-decorator]
+def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str) -> None:
     """Performs a GDPR-compliant hard purge using cryptographic erasure.
 
     Args:
@@ -829,8 +668,8 @@ def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str):
         db.commit()
 
 
-@celery_app.task(queue="high")
-def backup_postgresql_task():
+@celery_app.task(queue="high")  # type: ignore[untyped-decorator]
+def backup_postgresql_task() -> str:
     """Performs a PostgreSQL backup with integrity hashing and encryption.
 
     Returns:
@@ -855,7 +694,9 @@ def backup_postgresql_task():
         # c) Encryption (Placeholder for KMS/AES-256-GCM)
         # LOCAL ENFORCEMENT: Skip S3 upload
         if settings.STRICT_LOCAL_MODE:
-            logger.info(f"STRICT_LOCAL: PostgreSQL backup stored at {dump_path}. S3 upload skipped.")
+            logger.info(
+                f"STRICT_LOCAL: PostgreSQL backup stored at {dump_path}. S3 upload skipped."
+            )
             # Ensure we still register the local backup for audit purposes
             s3_path = f"local://{dump_path}"
         else:
@@ -892,8 +733,8 @@ def backup_postgresql_task():
         raise
 
 
-@celery_app.task(queue="low")
-def backup_tenant_sqlite_task(tenant_id: str):
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def backup_tenant_sqlite_task(tenant_id: str) -> None:
     """Performs an online SQLite backup for a tenant with WAL consistency.
 
     Args:
@@ -928,8 +769,8 @@ def backup_tenant_sqlite_task(tenant_id: str):
         logger.error(f"Tenant {tenant_id} backup failure: {e}")
 
 
-@celery_app.task(queue="low")
-def backup_redis_task():
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def backup_redis_task() -> None:
     """Performs a Redis RDB snapshot and calculates its SHA-256 integrity hash."""
     try:
         # a) Hourly BGSAVE
@@ -948,11 +789,11 @@ def backup_redis_task():
         logger.error(f"Redis backup failed: {e}")
 
 
-@celery_app.task(queue="medium")
-def run_nightly_brt_orchestration():
+@celery_app.task(queue="medium")  # type: ignore[untyped-decorator]
+def run_nightly_brt_orchestration() -> None:
     """Orchestrates nightly backups and triggers restore validation workflows."""
     # 1. Trigger fresh backups
-    pg_task = backup_postgresql_task.delay()
+    backup_postgresql_task.delay()
 
     # 2. Select 3 random tenants for validation (Requirement 6.a)
     from src.trueroas.core.database import SessionLocal
@@ -967,8 +808,9 @@ def run_nightly_brt_orchestration():
     logger.info("Nightly BRT initiated. Awaiting verification registry...")
     # CI workflow monitors backup_registry and continues to restore_validation.tf
 
-@celery_app.task(queue="low")
-def send_weekly_savings_report_task():
+
+@celery_app.task(queue="low")  # type: ignore[untyped-decorator]
+def send_weekly_savings_report_task() -> dict[str, str]:
     """External reporting disabled for STRICT LOCAL mode."""
     logger.info("Weekly savings report task skipped: Local-only mode enabled.")
     return {"status": "skipped", "reason": "local_only_mode"}

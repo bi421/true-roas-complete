@@ -1,10 +1,8 @@
 from typing import Optional
-
-from fastapi import APIRouter, Header, status
+from fastapi import APIRouter, Header, status, HTTPException
 from pydantic import BaseModel
 
-from src.trueroas.workers.tasks import sync_meta_data
-
+# from trueroas.core.config import settings # Assuming settings might be needed here
 router = APIRouter(prefix="/api/v1", tags=["Sync"])
 
 
@@ -13,7 +11,8 @@ class SyncRequest(BaseModel):
 
 
 @router.post("/sync", status_code=status.HTTP_202_ACCEPTED)
-async def trigger_sync(req: SyncRequest, x_tenant_id: str = Header("default")):
-    tenant = req.tenant_id or x_tenant_id
-    task = sync_meta_data.delay(tenant)
-    return {"task_id": task.id, "status": "queued"}
+async def trigger_sync(req: SyncRequest, x_tenant_id: str = Header("default")) -> None:
+    raise HTTPException(
+        status_code=410,
+        detail="Endpoint deprecated. Transitioned to Zero-Knowledge architecture.",
+    )

@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 # TrueROAS - Functional Verification Script
 from .market_decision_engine import MarketDecisionEngine
 

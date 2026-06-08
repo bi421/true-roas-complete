@@ -27,8 +27,8 @@ async def manual_override(
     x_mfa_code: str = Header(..., alias="X-MFA-Code"),
     x_tenant_id: str = Header("default"),
     db: Session = Depends(get_db_session),
-    _=Security(require_admin),
-):
+    _: None = Security(require_admin),
+) -> dict[str, str]:
     """
     Requirement 10: MFA-guarded manual override (Break-glass).
     """

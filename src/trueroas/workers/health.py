@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from src.trueroas.core.config import settings
@@ -6,7 +8,7 @@ router = APIRouter(tags=["System"])
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict[str, Any]:
     """
     Health check and basic connectivity status.
     """

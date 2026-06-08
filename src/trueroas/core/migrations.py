@@ -3,7 +3,8 @@ import os
 import re
 import shutil
 from datetime import datetime, timedelta
-from logging.handlers import TimedRotatingFileHandler  # type: ignore
+from logging.handlers import TimedRotatingFileHandler
+from typing import List
 
 import duckdb
 from sqlalchemy import create_engine, text
@@ -11,10 +12,7 @@ from sqlalchemy import create_engine, text
 from trueroas.core.config import settings
 
 # Configure log directory and file path (Project Root/data/logs)
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-LOG_DIR = os.path.join(BASE_DIR, "data", "logs")
+LOG_DIR = settings.DATA_DIR / "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "migrations.log")
 
@@ -49,7 +47,7 @@ if not logger.handlers:
     file_handler.extMatch = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
     # 2. Function to rename log files (migrations.log.YYYY-MM-DD -> YYYY-MM-DD_migrations.log).
-    def custom_namer(name):
+    def custom_namer(name: str) -> str:
         dir_path, filename = os.path.split(name)
         if filename.startswith("migrations.log."):
             date_part = filename.split(".")[-1]
@@ -62,7 +60,7 @@ if not logger.handlers:
     logger.addHandler(file_handler)
 
 # Migration list - Applied in sequence.
-MIGRATIONS = [
+MIGRATIONS: List[str] = [
     # Version 1: Core tables.
     """
     CREATE TABLE IF NOT EXISTS historical_metrics (
@@ -253,10 +251,23 @@ MIGRATIONS = [
         error_message TEXT
     );
     """,
+    # Version 13: Zero-Knowledge Compute Proofs
+    """
+    CREATE TABLE IF NOT EXISTS zk_proofs (
+        id VARCHAR PRIMARY KEY,
+        tenant_id VARCHAR,
+        true_roas DOUBLE,
+        meta_roas DOUBLE,
+        waste_usd DOUBLE,
+        p10_roas DOUBLE,
+        signature VARCHAR,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
 ]
 
 
-def cleanup_old_logs():
+def cleanup_old_logs() -> None:
     """Archives old logs and purges archives exceeding the 90-day retention limit."""
     try:
         # Filter for YYYY-MM-DD_migrations.log files.
@@ -297,7 +308,7 @@ def cleanup_old_logs():
         logger.error(f"Cleanup failed: {e}")
 
 
-def archive_old_audit_logs(tenant_id: str):
+def archive_old_audit_logs(tenant_id: str) -> None:
     """Archives old audit logs to cold storage for a specific tenant.
 
     In production, this moves rows to an archive table or external object store.
@@ -306,7 +317,6 @@ def archive_old_audit_logs(tenant_id: str):
         tenant_id (str): Unique tenant identifier.
     """
     schema_name = f"tenant_{tenant_id.replace('-', '_')}"
-    archive_limit = datetime.now() - timedelta(days=365)
 
     engine = create_engine(str(settings.POSTGRES_URL))
     with engine.begin() as con:
@@ -319,7 +329,7 @@ def archive_old_audit_logs(tenant_id: str):
         )
 
 
-def apply_migrations(tenant_id: str):
+def apply_migrations(tenant_id: str) -> None:
     """Upgrades a tenant's schema to the latest version in PostgreSQL.
 
     Args:
@@ -432,7 +442,7 @@ def apply_migrations(tenant_id: str):
                     break
 
 
-def run_migrations():
+def run_migrations() -> None:
     """CLI Entry point to initialize the default tenant schema."""
     apply_migrations("default")
     print("SUCCESS: Tenant 'default' schema initialized.")

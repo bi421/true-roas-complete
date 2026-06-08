@@ -1,3 +1,4 @@
+from typing import Any
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 @router.post("/create-checkout-session")
 async def create_checkout_session(
     plan_type: str, tenant_id: str, db: Session = Depends(get_db_session)
-):
+) -> dict[str, Any]:
     """Creates a Stripe Checkout session for a specific subscription plan.
 
     Args:

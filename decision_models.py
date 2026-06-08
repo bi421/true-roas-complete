@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
+
 
 class DecisionIntelligenceSummary(BaseModel):
     recommended_action: str
@@ -10,6 +11,7 @@ class DecisionIntelligenceSummary(BaseModel):
     readiness_score: float
     expected_value: float
     confidence_level: str
+
 
 class ReasoningOrder(BaseModel):
     observation: str
@@ -23,6 +25,7 @@ class ReasoningOrder(BaseModel):
     expected_value: float
     recommendation: str
     validation_plan: str
+
 
 class IntelligenceResponse(BaseModel):
     summary: DecisionIntelligenceSummary

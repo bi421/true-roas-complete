@@ -4,6 +4,7 @@ import os
 
 router = APIRouter()
 
+
 @router.get("/", response_class=HTMLResponse)
 async def get_landing_page():
     """

@@ -3,9 +3,8 @@ import json
 import logging
 import os
 import random
-import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import duckdb
 import httpx
@@ -39,7 +38,10 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
             with duckdb.connect(db_path) as con:
                 if not token:
                     # P1 FIX: Prevent demo data from polluting production DB
-                    if settings.ENVIRONMENT == "production" and settings.STRICT_LOCAL_MODE:
+                    if (
+                        settings.ENVIRONMENT == "production"
+                        and settings.STRICT_LOCAL_MODE
+                    ):
                         logger.critical(
                             "Security Breach: Attempted to run DEMO mode in PRODUCTION environment."
                         )
@@ -88,16 +90,19 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
                 return {"mode": "REAL", "days": 0, "records_processed": 0}
     except redis.exceptions.LockError:
         # tasks.py autoretry_for will catch LockError
-        raise redis.exceptions.LockError(f"DuckDB lock timeout for {db_path}.")
+        raise redis.exceptions.LockError(f"DuckDB lock timeout for {db_path}.")  # type: ignore[no-untyped-call]
     except Exception as e:
         with duckdb.connect(db_path) as con:
-            con.execute("""
+            con.execute(
+                """
                 INSERT INTO sync_metadata (service, last_sync_status, error_message)
                 VALUES ('meta', 'STALE', ?)
                 ON CONFLICT(service) DO UPDATE SET 
                     last_sync_status = 'STALE', 
                     error_message = EXCLUDED.error_message
-            """, [str(e)])
+            """,
+                [str(e)],
+            )
         raise e
 
 
@@ -107,7 +112,7 @@ class MetaCAPI:
     Event ID deduplication for EMQ >8.0
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.access_token = settings.META_ACCESS_TOKEN
         self.pixel_id = settings.META_PIXEL_ID
         self.api_version = settings.META_API_VERSION
@@ -181,7 +186,7 @@ class MetaCAPI:
         # Used only for processing strategic advice within the local server.
 
         event_id = self._generate_event_id(order_id, email)
-        
+
         logger.info(
             f"LOCAL_STALER_INSIGHT: Purchase for {order_id} processed locally. "
             "No data sent to external Meta Graph API (Egress Blocked)."
@@ -190,7 +195,7 @@ class MetaCAPI:
         return {
             "status": "locally_logged",
             "event_id": event_id,
-            "message": "Strategic advice updated locally. Data residency maintained."
+            "message": "Strategic advice updated locally. Data residency maintained.",
         }
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential_jitter(initial=1, max=10))
@@ -250,7 +255,7 @@ class MetaCAPI:
         # 1. Check local cache first to save Meta API credits
         cached = redis_client.get(cache_key)
         if cached:
-            return json.loads(cached)
+            return cast(Dict[str, Any], json.loads(cached))
 
         url = f"https://graph.facebook.com/{self.api_version}/{campaign_id}/insights"
         params = {
@@ -272,7 +277,7 @@ class MetaCAPI:
             except Exception as e:
                 logger.error(f"Failed to cache raw Meta response: {e}")
 
-            return raw_data
+            return cast(Dict[str, Any], raw_data)
 
 
 if __name__ == "__main__":

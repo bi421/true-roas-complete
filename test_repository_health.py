@@ -1,7 +1,6 @@
 import ast
 import compileall
 import importlib
-import os
 import sys
 from pathlib import Path
 from typing import List, Dict
@@ -19,6 +18,7 @@ if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
 # Registry to track health violations for the final report
 HEALTH_ERRORS: List[Dict[str, str]] = []
 
+
 def record_violation(file_path: Path, line: str, error_type: str, fix: str):
     """Adds a detected issue to the health error log."""
     try:
@@ -26,12 +26,10 @@ def record_violation(file_path: Path, line: str, error_type: str, fix: str):
     except ValueError:
         relative_path = file_path
 
-    HEALTH_ERRORS.append({
-        "file": str(relative_path),
-        "line": str(line),
-        "type": error_type,
-        "fix": fix
-    })
+    HEALTH_ERRORS.append(
+        {"file": str(relative_path), "line": str(line), "type": error_type, "fix": fix}
+    )
+
 
 def generate_report_and_abort(message: str):
     """Writes the markdown error table and terminates the pytest session."""
@@ -39,21 +37,26 @@ def generate_report_and_abort(message: str):
         report_path = PROJECT_ROOT / "health_report.md"
         with open(report_path, "w", encoding="utf-8") as f:
             f.write("# 🛡️ TrueROAS Repository Health Report\n\n")
-            f.write("Critical code integrity issues detected. Fix these to resume the test suite.\n\n")
+            f.write(
+                "Critical code integrity issues detected. Fix these to resume the test suite.\n\n"
+            )
             f.write("| File | Line | Error Type | Suggested Fix |\n")
             f.write("| :--- | :--- | :--- | :--- |\n")
             for err in HEALTH_ERRORS:
-                f.write(f"| {err['file']} | {err['line']} | {err['type']} | {err['fix']} |\n")
-        
+                f.write(
+                    f"| {err['file']} | {err['line']} | {err['type']} | {err['fix']} |\n"
+                )
+
         print(f"\n[!] Health Gate Failed: {message}")
         print(f"[!] Detailed report generated: {report_path}")
-    
+
     pytest.exit(message, returncode=1)
+
 
 @pytest.mark.order(1)
 class TestRepositoryHealth:
     """
-    Quality gate for repository-wide code health. 
+    Quality gate for repository-wide code health.
     Runs before all other tests to ensure the codebase is syntactically sound.
     """
 
@@ -74,11 +77,18 @@ class TestRepositoryHealth:
                     line = "Unknown"
                 except SyntaxError as e:
                     line = str(e.lineno)
-                
-                record_violation(py_file, line, "SyntaxError", "Check for mismatched indentation, missing colons, or Python 3.11 incompatibility.")
+
+                record_violation(
+                    py_file,
+                    line,
+                    "SyntaxError",
+                    "Check for mismatched indentation, missing colons, or Python 3.11 incompatibility.",
+                )
 
         if failed:
-            generate_report_and_abort("Aborting: Syntax errors detected in Python files.")
+            generate_report_and_abort(
+                "Aborting: Syntax errors detected in Python files."
+            )
 
     def test_no_trailing_braces(self):
         """Verifies that no file contains stray module-level braces (JSON/C-style leakage)."""
@@ -106,13 +116,25 @@ class TestRepositoryHealth:
                 importlib.import_module(module_name)
             except (ImportError, ModuleNotFoundError) as e:
                 failed = True
-                record_violation(py_file, "N/A", "ImportError", f"Resolve dependency cycle or missing requirement: {e}")
+                record_violation(
+                    py_file,
+                    "N/A",
+                    "ImportError",
+                    f"Resolve dependency cycle or missing requirement: {e}",
+                )
             except Exception as e:
                 failed = True
-                record_violation(py_file, "N/A", "Module Load Failure", f"Fix runtime error at module level: {e}")
+                record_violation(
+                    py_file,
+                    "N/A",
+                    "Module Load Failure",
+                    f"Fix runtime error at module level: {e}",
+                )
 
         if failed:
-            generate_report_and_abort("Aborting: Module import failures or circular dependencies detected.")
+            generate_report_and_abort(
+                "Aborting: Module import failures or circular dependencies detected."
+            )
 
     def test_no_broken_annotations(self):
         """Uses AST parsing to verify that type annotations follow valid Python 3.11 syntax."""
@@ -125,10 +147,17 @@ class TestRepositoryHealth:
                 ast.parse(py_file.read_text(encoding="utf-8"))
             except (SyntaxError, IndentationError) as e:
                 failed = True
-                record_violation(py_file, str(e.lineno), "Annotation/Syntax Error", f"Check for invalid type hints or broken '|' union syntax.")
+                record_violation(
+                    py_file,
+                    str(e.lineno),
+                    "Annotation/Syntax Error",
+                    "Check for invalid type hints or broken '|' union syntax.",
+                )
 
         if failed:
-            generate_report_and_abort("Aborting: Broken type annotations or invalid syntax detected.")
+            generate_report_and_abort(
+                "Aborting: Broken type annotations or invalid syntax detected."
+            )
 
     def test_only_ascii_filenames(self):
         """Verifies that all filenames in the repository contain only ASCII characters."""
@@ -136,13 +165,22 @@ class TestRepositoryHealth:
         # Scan all paths starting from project root
         for path in PROJECT_ROOT.rglob("*"):
             # Skip internal git files, cache, virtual environments, and data folder
-            if any(p in path.parts for p in [".git", "__pycache__", ".venv", "venv", "data"]):
+            if any(
+                p in path.parts
+                for p in [".git", "__pycache__", ".venv", "venv", "data"]
+            ):
                 continue
-            
+
             if not path.name.isascii():
                 failed = True
-                record_violation(path, "N/A", "Non-ASCII Filename", 
-                                 "Rename the file using only standard ASCII characters (A-Z, 0-9, _, -).")
+                record_violation(
+                    path,
+                    "N/A",
+                    "Non-ASCII Filename",
+                    "Rename the file using only standard ASCII characters (A-Z, 0-9, _, -).",
+                )
 
         if failed:
-            generate_report_and_abort("Aborting: Non-ASCII filenames detected in repository.")
+            generate_report_and_abort(
+                "Aborting: Non-ASCII filenames detected in repository."
+            )

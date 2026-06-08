@@ -1,1 +1,1 @@
-﻿# dummy __init__
+# dummy __init__

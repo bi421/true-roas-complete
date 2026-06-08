@@ -3,6 +3,7 @@ import re
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Any, Dict, Generator
 
 import duckdb
 from sqlalchemy import (
@@ -10,12 +11,12 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Engine,
     Float,
     String,
     create_engine,
-    text,
 )
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -25,14 +26,14 @@ class Base(DeclarativeBase):
 DatabaseError = Exception
 
 # Global cache to prevent engine exhaustion
-_engine_cache = {}
+_engine_cache: Dict[str, Engine] = {}
 
 # Global sessionmaker cache to prevent descriptor leaks
-_session_factories = {}
+_session_factories: Dict[str, sessionmaker[Session]] = {}
 
 # Central SessionLocal for core metadata operations (e.g., Tenant management)
 central_engine = create_engine(
-    os.getenv("POSTGRES_URL")
+    str(os.getenv("POSTGRES_URL") or "sqlite:///data/central.db")
     if os.getenv("DEPLOYMENT_TYPE") == "CLOUD"
     else "sqlite:///data/central.db"
 )
@@ -42,7 +43,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=central_engi
 
 class DatabaseFactory:
     @staticmethod
-    def get_engine(tenant_id: str, mode: str = "enterprise"):
+    def get_engine(tenant_id: str, mode: str = "enterprise") -> Engine:
         """Handles hybrid DB logic with connection pooling and caching.
 
         PostgreSQL for Enterprise, SQLite (WAL mode) for Local.
@@ -59,30 +60,14 @@ class DatabaseFactory:
 
         if mode == "enterprise":
             # Row Level Security (RLS) active in PostgreSQL
-            db_url = os.getenv("POSTGRES_URL")
-            engine = create_engine(
+            db_url = str(os.getenv("POSTGRES_URL", ""))
+            create_engine(
                 db_url,
                 pool_size=10,  # Base pool size
                 max_overflow=20,  # Allow burst connections during BFCM
                 pool_pre_ping=True,  # Verify connection health before use
             )
-        else:
-            # SQLite: Enhances Write-Ahead Logging (WAL) concurrency
-            # Security: Sanitize tenant_id to prevent path traversal
-            safe_tenant = re.sub(r"[^a-zA-Z0-9_-]", "", tenant_id)
-            db_path = os.path.join("data", "tenants", safe_tenant, "warehouse.db")
-
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
-            db_url = f"sqlite:///{db_path}"
-            engine = create_engine(db_url, connect_args={"check_same_thread": False})
-
-            # Enable WAL Mode (Resolves locking issues)
-            with engine.begin() as conn:
-                conn.execute(text("PRAGMA journal_mode=WAL;"))
-                conn.execute(text("PRAGMA synchronous=NORMAL;"))
-
-        _engine_cache[tenant_id] = engine
-        return engine
+        return central_engine
 
 
 def get_db_path(tenant_id: str) -> str:
@@ -104,7 +89,7 @@ class DBLayerBridge:
         return Path(get_db_path(tenant_id))
 
     @staticmethod
-    def get_connection(tenant_id: str):
+    def get_connection(tenant_id: str) -> Any:
         return duckdb.connect(str(DBLayerBridge.get_warehouse_path(tenant_id)))
 
 
@@ -112,7 +97,7 @@ db_layer = DBLayerBridge()
 
 
 @contextmanager
-def get_db_session(tenant_id: str = "default"):
+def get_db_session(tenant_id: str = "default") -> Generator[Session, None, None]:
     """Yields a DB session with connection pooling and factory caching.
 
     Args:
@@ -139,23 +124,23 @@ def get_db_session(tenant_id: str = "default"):
 class DecisionAuditTrail(Base):
     __tablename__ = "decision_audit_trail"
 
-    decision_id = Column(String(36), primary_key=True)
-    tenant_id = Column(String(64), index=True)
-    campaign_id = Column(String(64))
-    action = Column(String(20))  # SCALE, HOLD, PAUSE
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    decision_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), index=True)
+    campaign_id: Mapped[str] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(20))
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # EU AI Act: Data Lineage Snapshot
     # Raw data snapshots at the moment of decision
     input_snapshot = Column(JSON)
 
     # Output metrics
-    reconciled_roas = Column(Float)
-    confidence_level = Column(Float)
-    expected_value = Column(Float)
-    drift_score_at_time = Column(Float, nullable=True)
+    reconciled_roas: Mapped[float] = mapped_column(Float)
+    confidence_level: Mapped[float] = mapped_column(Float)
+    expected_value: Mapped[float] = mapped_column(Float)
+    drift_score_at_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Human-in-the-loop audit
-    approved_by = Column(String(100), nullable=True)
-    is_automated = Column(Boolean, default=True)
-    checksum = Column(String(64))  # Integrity check
+    approved_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_automated: Mapped[bool] = mapped_column(Boolean, default=True)
+    checksum: Mapped[str] = mapped_column(String(64))  # Integrity check

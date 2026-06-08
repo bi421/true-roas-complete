@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 #  Proprietary and confidential.
@@ -53,7 +54,7 @@ class TestMarketDecisionEngine:
             current_budget=500.0,
         )
 
-        assert result["analysis_report"]["recommended_action"] == "REDUCE/PAUSE"
+        assert result["analysis_report"]["recommended_action"] == "REDUCE_OR_HOLD"
         assert result["executive_ledger"]["suggested_adjustment"] == "-50%"
 
     def test_bot_traffic_penalization(self):

@@ -31,7 +31,7 @@ class DecisionAccountabilityEngine:
             total = stats[0] or 0
             success = stats[1] or 0
             accuracy = round(stats[2], 1) if stats[2] is not None else 0.0
-            calibration = round(stats[3], 3) if stats[3] is not None else 0.0
+            # calibration = round(stats[3], 3) if stats[3] is not None else 0.0
             bias = round(stats[4], 2) if stats[4] is not None else 0.0
             mae = round(stats[5], 2) if stats[5] is not None else 0.0
 
@@ -80,7 +80,9 @@ class DecisionAccountabilityEngine:
                 "trust_label": (
                     "High"
                     if accuracy > 75
-                    else "Stable" if accuracy > 60 else "Learning"
+                    else "Stable"
+                    if accuracy > 60
+                    else "Learning"
                 ),
                 "status_message": f"Engine has a {accuracy}% accuracy rate based on {total} past scaling outcomes.",
             }

@@ -2,6 +2,7 @@
 #  All rights reserved.
 
 import os
+import pytest
 import builtins
 import random
 import sys
@@ -10,6 +11,17 @@ from pathlib import Path
 from hypothesis import settings, HealthCheck
 
 builtins.random = random
+
+
+@pytest.fixture(autouse=True)
+def ignore_httpx_deprecation_warnings():
+    import warnings
+
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning, module="httpx._client"
+    )
+
+
 builtins.true_roas = 0.0
 builtins.post_mean = 0.0
 builtins.prior_var = 1.0
@@ -22,7 +34,9 @@ for path in (ROOT, SRC):
         sys.path.insert(0, path_text)
 
 # Define the 'ci' profile: more examples, no deadlines for slower environments
-settings.register_profile("ci", max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+settings.register_profile(
+    "ci", max_examples=1000, deadline=None, suppress_health_check=[HealthCheck.too_slow]
+)
 
 # Define a 'dev' profile for faster local runs
 settings.register_profile("dev", max_examples=50, deadline=500)

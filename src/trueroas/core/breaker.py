@@ -9,21 +9,25 @@ import asyncio
 from typing import Any, Dict
 
 import redis
-from prometheus_client import Counter
+from prometheus_client import Counter, REGISTRY
 from sqlalchemy import text
 
-from src.trueroas.workers.meta_sync import MetaCAPI
 from src.trueroas.core.database import get_db_session
 from src.trueroas.core.config import settings
 
 logger = logging.getLogger("trueroas.breaker")
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
 
-CIRCUIT_BREAKER_TRIGGERS = Counter(
-    "circuit_breaker_triggers_total",
-    "Total circuit breaker trigger events",
-    ["tenant_id", "campaign_id", "severity"],
-)
+try:
+    CIRCUIT_BREAKER_TRIGGERS: Counter = Counter(
+        "circuit_breaker_triggers_total",
+        "Total circuit breaker trigger events",
+        ["tenant_id", "campaign_id", "severity"],
+    )
+except ValueError:
+    CIRCUIT_BREAKER_TRIGGERS = REGISTRY._names_to_collectors[
+        "circuit_breaker_triggers_total"
+    ]  # type: ignore[assignment]
 
 
 class AdSpendBreaker:
@@ -116,23 +120,33 @@ class AdSpendBreaker:
         return result
 
     @staticmethod
-    async def execute_protection(tenant_id: str, campaign_id: str, auto_pause_enabled: bool):
+    async def execute_protection(
+        tenant_id: str, campaign_id: str, auto_pause_enabled: bool
+    ) -> bool:
         """
         Actuator: Actually stops the bleed if the system identifies a HARD_BREAKER state
         and the brand has granted trust via auto_pause_enabled.
         """
         evaluation = AdSpendBreaker.evaluate(tenant_id, campaign_id)
-        
+
         if evaluation["status"] == "HARD_BREAKER" and auto_pause_enabled:
-            logger.critical(f"CAPITAL_SAFETY_TRIGGERED: Auto-pausing campaign {campaign_id} for tenant {tenant_id}")
-            
+            logger.critical(
+                f"CAPITAL_SAFETY_TRIGGERED: Auto-pausing campaign {campaign_id} for tenant {tenant_id}"
+            )
+
+            from src.trueroas.workers.meta_sync import (
+                MetaCAPI,
+            )  # local import avoids circular dep
+
             api = MetaCAPI()
             success = await api.pause_campaign(campaign_id)
-            
+
             if success:
                 AdSpendBreaker.log_decision(
-                    tenant_id, campaign_id, "AUTO_PAUSE_EXECUTED", 
-                    f"Hard variance {evaluation['hard_avg']} exceeded threshold. Bleed stopped automatically."
+                    tenant_id,
+                    campaign_id,
+                    "AUTO_PAUSE_EXECUTED",
+                    f"Hard variance {evaluation['hard_avg']} exceeded threshold. Bleed stopped automatically.",
                 )
             return success
         return False
@@ -148,7 +162,7 @@ class AdSpendBreaker:
         approval_key = f"hitl:approval:{tenant_id}:{campaign_id}"
 
         # 1. Send Slack Notification (Mocking webhook call)
-        message = f"🚨 *TrueROAS Capital Alert* 🚨\nTenant: {tenant_id}\nCampaign: {campaign_id}\nEstimated Waste: ${waste_amount:,.2f}\nAction: *PAUSE RECOMMENDED*"
+        # message = f"🚨 *TrueROAS Capital Alert* 🚨\nTenant: {tenant_id}\nCampaign: {campaign_id}\nEstimated Waste: ${waste_amount:,.2f}\nAction: *PAUSE RECOMMENDED*"
         logger.warning(f"HITL: Sending Slack approval request for {campaign_id}")
 
         # Logic for real Slack interactive buttons would go here

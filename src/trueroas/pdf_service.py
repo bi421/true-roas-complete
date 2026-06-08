@@ -1,24 +1,6 @@
 import uuid
-from typing import Any, Dict
-
+from typing import Dict, Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-HTML: Any
-
-try:
-    import weasyprint
-except Exception:
-    class _FallbackHTML:
-        def __init__(self, string: str, base_url: str | None = None) -> None:
-            self.string = string
-
-        def write_pdf(self, target: str) -> None:
-            with open(target, "wb") as f:
-                f.write(self.string.encode("utf-8"))
-
-    HTML = _FallbackHTML
-else:
-    HTML = weasyprint.HTML
 
 from src.trueroas.core.config import settings
 
@@ -28,7 +10,7 @@ class PDFService:
     Handles PDF generation using WeasyPrint with template caching via Jinja2.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Template directory at project root
         self.template_dir = (settings.BASE_DIR / "templates").resolve()
         self.template_dir.mkdir(parents=True, exist_ok=True)
@@ -70,7 +52,9 @@ class PDFService:
         tenant_reports_dir.mkdir(parents=True, exist_ok=True)
         report_file_path = tenant_reports_dir / f"{report_uuid}.pdf"
 
-        # 3. Generate PDF using WeasyPrint
+        # 3. Generate PDF using WeasyPrint (lazy import: GTK only required at render time)
+        from weasyprint import HTML
+
         HTML(string=html_content, base_url=str(settings.BASE_DIR)).write_pdf(
             target=str(report_file_path)
         )
