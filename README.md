@@ -1,13 +1,15 @@
 # TrueROAS: Zero-Knowledge Decision Intelligence
 
-TrueROAS is a high-integrity decision engine for DTC brands. It reconciles Meta Ads signals with Shopify revenue using **Zero-Knowledge Client-Side Compute**. By pivoting the data plane to the edge, TrueROAS allows brands to verify their ROAS without ever surrendering raw financial or customer data to a third-party server.
+Meta reports ROAS. Your bank account reports reality. TrueROAS independently verifies advertising performance and helps brands identify wasted spend before capital is lost.
+
+TrueROAS is a high-integrity decision engine for DTC brands. It reconciles Meta Ads signals with Shopify revenue using **Zero-Knowledge Client-Side Compute**. By pivoting the data plane to the edge, TrueROAS allows brands to verify their ROAS without raw order-level and customer-level data ever being transmitted to the TrueROAS Control Plane.
 
 ## Key Value Propositions
 
 - **Zero-Knowledge Architecture:** Your raw Shopify orders, customer PII, and ad spend never leave your environment. Only the mathematical results (the "Strategic Proof") are transmitted.
-- **WASM-Powered Compute:** High-performance Rust-compiled Bayesian engine runs directly in the user's browser, enabling sub-millisecond reconciliation without data egress.
+- **WASM-Powered Compute:** High-performance Rust-compiled Bayesian engine runs directly in the user's browser, enabling low-latency local reconciliation without data egress.
 - **Capital Preservation:** Includes a real-time `AdSpendBreaker` (Circuit Breaker) that automatically pauses or flags inefficient campaigns.
-- **WORM Compliance:** All strategic decisions are logged in a "Write Once, Read Many" (WORM) audit trail with HMAC-SHA256 digital signatures for IRS-ready auditing.
+- **Cryptographically Signed Audit Trail:** All strategic decisions are logged in a tamper-evident audit trail with HMAC-SHA256 digital signatures, designed to support audit workflows.
 
 ## Core Architecture (Control vs. Data Plane)
 
@@ -16,7 +18,7 @@ TrueROAS is a high-integrity decision engine for DTC brands. It reconciles Meta 
 
 ## The Zero-Knowledge Promise
 
-TrueROAS is an engine provider, not a data warehouse. We believe that in a privacy-first world, your marketing data is your most sensitive capital asset. Our architecture is designed so that even if the TrueROAS Control Plane were compromised, an attacker would find zero customer names, zero order values, and zero proprietary spend data—only the final, risk-adjusted performance ratios.
+TrueROAS is an engine provider, not a data warehouse. We believe that in a privacy-first world, your marketing data is your most sensitive capital asset. Raw order-level and customer-level data remain under customer control. Our architecture is designed so that even if the TrueROAS Control Plane were compromised, an attacker would find zero customer names, zero order values, and zero proprietary spend data—only the final, risk-adjusted performance ratios.
 
 ## Setup & Installation
 
@@ -45,9 +47,9 @@ The production preflight (`production_preflight.ps1`) enforces the following gat
 | Stage | Tool | Requirement |
 |---|---|---|
 | Formatting & Linting | Ruff | Zero violations |
-| Type Safety | mypy --strict | Zero errors across all 80 source files |
+| Type Safety | mypy --strict | Zero errors across all 103 source files |
 | Security Scan | Bandit | No high-severity findings |
-| Logic & Property Tests | pytest + Hypothesis | 99 tests passing, coverage ≥ 60% |
+| Logic & Property Tests | pytest + Hypothesis | 115 tests passing, coverage ≥ 63.19% |
 
 ## Security & Compliance
 
