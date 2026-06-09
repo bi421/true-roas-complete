@@ -1,17 +1,17 @@
-from fastapi import HTTPException, status, Security, Request
+from fastapi import HTTPException, status, Security, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from src.trueroas.core.config import settings
 import logging
-from typing import cast
+from typing import Any, cast
 
 security = HTTPBearer()
 logger = logging.getLogger("trueroas.auth")
 
 
-async def get_current_tenant(
+async def get_auth_context(
     request: Request, auth: HTTPAuthorizationCredentials = Security(security)
-) -> str:
+) -> dict[str, Any]:
     """
     Decodes JWT and validates tenant context.
     In production, this verifies the 'tenant_id' claim.
@@ -22,7 +22,8 @@ async def get_current_tenant(
             auth.credentials,
             settings.APP_SECRET_SALT,
             algorithms=["HS256"],
-            options={"verify_exp": True, "verify_aud": False},
+            options={"verify_exp": True, "verify_aud": True},
+            audience="trueroas-api",
         )
         tenant_id = cast(str, payload.get("tenant_id"))
         if not tenant_id:
@@ -48,12 +49,18 @@ async def get_current_tenant(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Tenant context mismatch"
             )
 
-        return tenant_id
+        return cast(dict[str, Any], payload)
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
+
+
+async def get_current_tenant(
+    payload: dict[str, Any] = Depends(get_auth_context),
+) -> str:
+    return cast(str, payload.get("tenant_id"))
 
 
 async def require_admin(
@@ -62,7 +69,11 @@ async def require_admin(
     """Enforces admin-level permissions."""
     try:
         payload = jwt.decode(
-            auth.credentials, settings.APP_SECRET_SALT, algorithms=["HS256"]
+            auth.credentials,
+            settings.APP_SECRET_SALT,
+            algorithms=["HS256"],
+            options={"verify_exp": True, "verify_aud": True},
+            audience="trueroas-api",
         )
         if payload.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Admin privileges required")

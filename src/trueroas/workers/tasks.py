@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -113,8 +114,15 @@ def _sanitize_task_args(
     Returns:
         dict: A dictionary of sanitized keyword arguments and event metadata.
     """
+    pii_sensitive_fields = {
+        "email",
+        "phone",
+        "hashed_email",
+        "address",
+        "customer_name",
+    }
     sanitized_kwargs = {
-        k: ("[REDACTED]" if k in ["email", "phone", "hashed_email"] else v)
+        k: ("[REDACTED]" if k.lower() in pii_sensitive_fields else v)
         for k, v in kwargs.items()
     }
 
@@ -270,20 +278,22 @@ def vacuum_databases() -> None:
         tenants = db.query(Tenant).all()
         for t in tenants:
             tenant_slug = str(t.slug)
+            conn = None
             try:
                 # Isolation level None for VACUUM as it cannot run inside a transaction
                 conn = db_layer.get_connection(tenant_slug)
-                old_iso = conn.isolation_level
-                conn.isolation_level = None
+                # Hardening SQLite for Scale
                 # Hardening SQLite for Scale
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA synchronous=NORMAL;")
                 conn.execute("PRAGMA cache_size=-20000;")  # 20MB cache
                 conn.execute("VACUUM")
-                conn.isolation_level = old_iso
                 logger.info(f"VACUUM completed for tenant database: {tenant_slug}")
             except Exception as e:
                 logger.error(f"Failed to vacuum database for tenant {tenant_slug}: {e}")
+            finally:
+                if conn:
+                    conn.close()
 
 
 @celery_app.task(queue="low")  # type: ignore[untyped-decorator]
@@ -325,12 +335,16 @@ def monitor_db_sizes() -> None:
                         f"ALERT: Tenant {tenant_slug} WAL size ({wal_size_mb:.2f}MB) exceeds 100MB threshold. Checkpointing required."
                     )
                     # Force a checkpoint to truncate the WAL if it exceeds threshold
+                    conn = None
                     try:
                         conn = db_layer.get_connection(tenant_slug)
                         conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
                         logger.info(f"WAL TRUNCATE successful for {tenant_slug}")
                     except Exception as e:
                         logger.error(f"WAL Checkpoint failed for {t.slug}: {e}")
+                    finally:
+                        if conn:
+                            conn.close()
 
 
 @celery_app.task(queue="low")  # type: ignore[untyped-decorator]
@@ -677,7 +691,7 @@ def backup_postgresql_task() -> str:
     """
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
     backup_id = f"pg_backup_{ts}"
-    dump_path = f"/tmp/{backup_id}.dump"
+    dump_path = os.path.join(tempfile.gettempdir(), f"{backup_id}.dump")
 
     try:
         # a) Native pg_dump (Custom format)
@@ -743,7 +757,7 @@ def backup_tenant_sqlite_task(tenant_id: str) -> None:
     from src.trueroas.core.database import db_layer
 
     db_path = db_layer.get_warehouse_path(tenant_id)
-    backup_path = f"/tmp/{tenant_id}_backup.db"
+    backup_path = os.path.join(tempfile.gettempdir(), f"{tenant_id}_backup.db")
 
     try:
         # d) WAL Checkpoint to ensure no dangling WAL

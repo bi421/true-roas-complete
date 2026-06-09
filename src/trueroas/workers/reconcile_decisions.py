@@ -2,6 +2,10 @@ import duckdb
 from datetime import timedelta
 
 
+_VALID_SUFFIXES = frozenset(["7d", "30d", "90d"])
+_VALID_DAYS = frozenset([7, 30, 90])
+
+
 def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None:
     """Performs automated reconciliation at 7, 30, and 90-day intervals.
 
@@ -19,13 +23,16 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
         ]
 
         for days, suffix, tolerance in windows:
+            assert (
+                suffix in _VALID_SUFFIXES and days in _VALID_DAYS
+            )  # guard before interpolation
             pending = con.execute(
                 f"""
                 SELECT decision_id, expected_roas, timestamp 
                 FROM decision_audit_trail
                 WHERE reconciled_{suffix}_at IS NULL 
                 AND timestamp <= CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL {days} DAY
-            """
+            """  # nosec B608
             ).fetchall()
 
             for d_id, expected_roas, decision_ts in pending:
@@ -57,7 +64,7 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
                         accuracy_ratio_{suffix} = ?,
                         reconciled_{suffix}_at = CURRENT_TIMESTAMP
                     WHERE decision_id = ?
-                """,
+                """,  # nosec B608
                     [actual_roas, is_accurate, accuracy_ratio, d_id],
                 )
 

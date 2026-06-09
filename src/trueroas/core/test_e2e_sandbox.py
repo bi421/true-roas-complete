@@ -12,12 +12,12 @@ from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from src.trueroas.main import app
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import SessionLocal, get_db_path
-from src.trueroas.core.subscriptions import Tenant, SubscriptionTier, TenantStatus
-from src.trueroas.core.migrations import apply_migrations
-from src.trueroas.workers.reconcile_decisions import reconcile_past_decisions
+from trueroas.main import app
+from trueroas.core.config import settings
+from trueroas.core.database import SessionLocal, get_db_path
+from trueroas.core.subscriptions import Tenant, SubscriptionTier, TenantStatus
+from trueroas.core.migrations import apply_migrations
+from trueroas.workers.reconcile_decisions import reconcile_past_decisions
 
 # Suppress the specific deprecation warning about the 'app' shortcut
 warnings.filterwarnings(
@@ -29,7 +29,7 @@ warnings.filterwarnings(
 
 
 def generate_token(tenant_id: str, role: str = "user"):
-    payload = {"tenant_id": tenant_id, "role": role}
+    payload = {"tenant_id": tenant_id, "role": role, "aud": "trueroas-api"}
     return jwt.encode(payload, settings.APP_SECRET_SALT, algorithm="HS256")
 
 
@@ -181,7 +181,7 @@ def test_full_accountability_lifecycle_automated(sandbox_tenant):
     received_sig = sig_line.split(": ")[1]
 
     # Re-calculate expected signature to prove integrity
-    from src.trueroas.core.security import derive_tenant_salt
+    from trueroas.core.security import derive_tenant_salt
 
     db: Session = SessionLocal()
     tenant_record = db.query(Tenant).filter(Tenant.slug == tenant_id).first()

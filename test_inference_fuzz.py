@@ -5,7 +5,7 @@ from src.trueroas.core.market_decision_engine import MarketDecisionEngine
 
 class TestInferenceFuzzing:
     """
-    Hypothesis ашиглан математик загварын тогтвортой байдлыг шалгах тестүүд.
+    Tests for mathematical model stability using Hypothesis.
     """
 
     @given(
@@ -34,7 +34,7 @@ class TestInferenceFuzzing:
         current_budget,
     ):
         """
-        Ямар ч оролтын утга дээр систем NaN эсвэл Crash өгөхгүй байхыг баталгаажуулна.
+        Ensures the system does not produce NaN or crash for any input value.
         """
         try:
             result = MarketDecisionEngine.comprehensive_diagnostic(
@@ -47,7 +47,7 @@ class TestInferenceFuzzing:
                 current_budget=current_budget,
             )
 
-            # Үр дүн дотор NaN утга байгаа эсэхийг шалгах
+            # Check if the result contains any NaN values
             assert "real_roi" in result["analysis_report"]
         except ZeroDivisionError:
             pytest.fail("Math engine encountered Division by Zero!")

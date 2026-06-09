@@ -6,13 +6,13 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel, Field
 
-from src.trueroas.core.accountability import DecisionAccountabilityEngine
-from src.trueroas.auth import get_current_tenant
-from src.trueroas.core.breaker import redis_client
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_path
-from src.trueroas.core.limiter import limiter
-from src.trueroas.core.strategy_content import StrategyContentService
+from trueroas.core.accountability import DecisionAccountabilityEngine
+from trueroas.auth import get_current_tenant
+from trueroas.core.breaker import redis_client
+from trueroas.core.config import settings
+from trueroas.core.database import get_db_path
+from trueroas.core.limiter import limiter
+from trueroas.core.strategy_content import StrategyContentService
 
 router = APIRouter(tags=["Analysis"])
 
@@ -41,7 +41,7 @@ class MetricsResponse(BaseModel):
 
 
 @router.get("/metrics", response_model=MetricsResponse)
-@limiter.limit(settings.RATE_LIMIT_METRICS)
+@limiter.limit(settings.RATE_LIMIT_METRICS)  # type: ignore[untyped-decorator]
 async def get_metrics(
     request: Request,
     tenant_id: str = Depends(get_current_tenant),
@@ -126,7 +126,7 @@ async def get_metrics(
                 FROM historical_metrics
                 WHERE 1=1 {date_filter}
                 ORDER BY clean_date ASC
-            """
+            """  # nosec B608 — date_filter is built from fixed strings, not user input
             trends = con.execute(trend_query, params).fetchall()
 
             # Format for frontend chart consumption

@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     DATA_DIR: Path = BASE_DIR / "data"
 
     # Server Settings
-    APP_HOST: str = "0.0.0.0"
+    APP_HOST: str = "0.0.0.0"  # nosec B104 — intentional for Docker container binding
     APP_PORT: int = 8001
     WORKERS_COUNT: int = 4
     ENABLE_SIMPLE_LANGUAGE: bool = True  # Convert complex terms into business language

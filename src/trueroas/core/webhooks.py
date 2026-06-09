@@ -220,10 +220,14 @@ async def shopify_webhook(
     x_shopify_shop_domain: str = Header(...),
     x_shopify_hmac_sha256: str = Header(...),
 ) -> Union[Dict[str, str], JSONResponse]:
+    # Requirement: Global protection for data ingestion
+    await check_cb("shopify")
     body = await request.body()
     if not verify_shopify_signature(body, x_shopify_hmac_sha256):
+        await update_cb("shopify", success=False)
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    await update_cb("shopify", success=True)
     topics = ["orders/create", "orders/updated", "refunds/create"]
     if x_shopify_topic in topics:
         return {"status": "ignored", "message": "Inbound data sync deprecated."}

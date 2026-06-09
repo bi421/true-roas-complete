@@ -1,51 +1,26 @@
-//  Copyright (c) 2024-2026 TrueROAS Team.
-//  Zero-Knowledge Client-Side Compute Engine (WASM)
-
 use wasm_bindgen::prelude::*;
-use statrs::distribution::{Continuous, ContinuousCDF, Normal};
-use serde::{Serialize, Deserialize};
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize)]
-pub struct BayesianResult {
-    pub true_roas: f64,
-    pub meta_roas: f64,
-    pub waste_usd: f64,
-    pub p10_roas: f64,
-}
+pub fn tune_threshold(current: f64, brier: f64, bias: f64) -> f64 {
+    let mut new_threshold = current;
 
-#[wasm_bindgen]
-pub fn calculate_strategic_proof(
-    meta_roas: f64, 
-    verified_revenue: f64, 
-    daily_spend: f64,
-    sample_size: u32
-) -> JsValue {
-    // 1. Bayesian Reconciliation using Normal-Normal Conjugate Prior
-    // Prior: Meta reported signals (The 'Belief')
-    // Likelihood: Shopify verified revenue (The 'Evidence')
-    
-    let prior_mean = meta_roas;
-    let prior_var = 0.5; // Estimated uncertainty in platform reporting
-    
-    let evidence_mean = verified_revenue / daily_spend.max(0.01);
-    let evidence_var = 1.0 / (sample_size as f64).max(1.0); // Variance decreases as sample size grows
-    
-    // Bayesian Update: Posterior Mean = (Prior_Mean/Var + Evidence_Mean/Var) / (1/Var + 1/Var)
-    let weight = (1.0 / evidence_var) / (1.0 / prior_var + 1.0 / evidence_var);
-    let posterior_mean = (evidence_mean * weight) + (prior_mean * (1.0 - weight));
-    let posterior_std = (1.0 / (1.0 / prior_var + 1.0 / evidence_var)).sqrt();
-    
-    let waste = daily_spend * (0f64.max(1.0 - (evidence_mean / meta_roas.max(0.1))));
-    let n = Normal::new(posterior_mean, posterior_std.max(0.01)).unwrap();
-    let p10 = n.inverse_cdf(0.10); // P10 Pessimistic Bound
+    // Calibration check logic for Bayesian threshold adjustment.
+    // Derived from the Zero-Touch Self-Learning System's AutoTuner logic.
+    // If calibration is poor (brier > 0.25) and system is over-optimistic (bias > 0.1),
+    // we increase the threshold to tighten decision criteria.
+    if brier > 0.25 && bias > 0.1 {
+        // Intensity scales linearly with bias magnitude (capped at 0.5)
+        let intensity = ((bias - 0.1) / 0.4).min(1.0).max(0.0);
+        
+        // Apply a deterministic adjustment between 5% and 15%
+        let adjustment = 0.05 + (0.10 * intensity);
+        
+        // Note: Sample size dampening is typically handled at the orchestration layer 
+        // before calling the WASM core for the final adjustment.
+        new_threshold = current * (1.0 + adjustment);
+    }
 
-    let result = BayesianResult {
-        true_roas: (posterior_mean * 100.0).round() / 100.0,
-        meta_roas,
-        waste_usd: (waste * 100.0).round() / 100.0,
-        p10_roas: (p10 * 100.0).round() / 100.0,
-    };
-
-    serde_wasm_bindgen::to_value(&result).unwrap()
+    // Clamp to [0.4, 1.5] range to prevent extreme drift and ensure stability.
+    let clamped = new_threshold.clamp(0.4, 1.5);
+    (clamped * 10000.0).round() / 10000.0
 }

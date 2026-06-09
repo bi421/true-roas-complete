@@ -3,15 +3,15 @@
 #  All rights reserved.
 
 # TrueROAS v2.1 Production Preflight Quality Gate
-# Энэхүү скрипт нь системийг LIVE болгохоос өмнөх эцсийн шалгалтуудыг гүйцэтгэнэ.
+# This script performs the final quality checks before deploying the system to LIVE.
 
-set -e  # Алдаа гарвал скриптийг шууд зогсооно.
+set -e  # Exit immediately if a command exits with a non-zero status.
 
 echo "===================================================="
 echo "🚀 Starting TrueROAS v2.1 Production Preflight Gate"
 echo "===================================================="
 
-# 1. Стингийн формат шалгах (Ruff)
+# 1. Check string formatting (Ruff)
 echo "🎨 Stage 1: Ruff Formatting & Linting..."
 ruff format . --check
 ruff check .
@@ -20,11 +20,11 @@ ruff check .
 echo "🏗️  Stage 2: Mypy Type Analysis..."
 mypy --strict src/
 
-# 3. Аюулгүй байдлын аудит (Bandit)
+# 3. Security Audit (Bandit)
 echo "🛡️  Stage 3: Bandit Security Scan..."
 bandit -r src/ -ll
 
-# 4. Тестүүд болон Coverage Gate (80% доод хязгаар)
+# 4. Logical Validation & Property Testing
 echo "🧪 Stage 4: Logical Validation & Property Testing..."
 export APP_SECRET_SALT="preflight_test_salt_for_validation_32_chars"
 

@@ -2,6 +2,7 @@
 Coverage boost tests targeting undertested pure-logic modules.
 Focuses on: inference, security, subscriptions, drift.
 """
+
 import hashlib
 import hmac as _hmac
 import json
@@ -11,7 +12,11 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
 from trueroas.core.drift import check_reconciliation_drift
-from trueroas.core.inference import BayesianInferenceEngine, DecisionEngine, BayesianInput
+from trueroas.core.inference import (
+    BayesianInferenceEngine,
+    DecisionEngine,
+    BayesianInput,
+)
 from trueroas.core.security import (
     sanitize_tenant_id,
     sign_audit_payload,
@@ -62,17 +67,24 @@ def test_posterior_negative_variance_clamped() -> None:
 
 
 def test_posterior_within_lag_window() -> None:
-    r = _engine.calculate_posterior(3.0, 3.0, 50, 1.0, platform="meta", days_since_click=10)
+    r = _engine.calculate_posterior(
+        3.0, 3.0, 50, 1.0, platform="meta", days_since_click=10
+    )
     assert r["lag_weight"] == 1.0
 
 
 def test_posterior_google_window() -> None:
-    r = _engine.calculate_posterior(3.0, 3.0, 50, 1.0, platform="google", days_since_click=50)
+    r = _engine.calculate_posterior(
+        3.0, 3.0, 50, 1.0, platform="google", days_since_click=50
+    )
     assert r["lag_weight"] == 1.0
 
 
 def test_get_decision_readiness_pause() -> None:
-    assert _engine.get_decision_readiness({"reconciled_roas": 1.0}) == "PAUSE_UNDERPERFORMING"
+    assert (
+        _engine.get_decision_readiness({"reconciled_roas": 1.0})
+        == "PAUSE_UNDERPERFORMING"
+    )
 
 
 def test_get_decision_readiness_scale() -> None:
@@ -99,7 +111,22 @@ def test_get_strategic_advice_insufficient() -> None:
 
 def test_get_strategic_advice_strong_scale() -> None:
     r = DecisionEngine.get_strategic_advice(
-        500, 5.0, 1.0, 4.0, 100, 0.9, 0.9, 0.05, 0.03, 2.0, 0.04, 0.02, 2.5, 5000, 1.0, {}
+        500,
+        5.0,
+        1.0,
+        4.0,
+        100,
+        0.9,
+        0.9,
+        0.05,
+        0.03,
+        2.0,
+        0.04,
+        0.02,
+        2.5,
+        5000,
+        1.0,
+        {},
     )
     assert r["action"] == "STRONG_SCALE"
 
@@ -107,7 +134,22 @@ def test_get_strategic_advice_strong_scale() -> None:
 def test_get_strategic_advice_invalid_std() -> None:
     with pytest.raises(ValueError):
         DecisionEngine.get_strategic_advice(
-            500, 2.0, 0.0, 4.0, 100, 0.9, 0.9, 0.05, 0.03, 2.0, 0.04, 0.02, 2.5, 5000, 1.0, {}
+            500,
+            2.0,
+            0.0,
+            4.0,
+            100,
+            0.9,
+            0.9,
+            0.05,
+            0.03,
+            2.0,
+            0.04,
+            0.02,
+            2.5,
+            5000,
+            1.0,
+            {},
         )
 
 
@@ -173,7 +215,9 @@ def test_verify_proof_signature_valid() -> None:
 
 
 def test_verify_proof_signature_expired() -> None:
-    old_ts = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old_ts = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     assert verify_proof_signature({"timestamp": old_ts}, "sig", "secret") is False
 
 

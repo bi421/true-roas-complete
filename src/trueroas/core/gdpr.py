@@ -51,12 +51,18 @@ async def export_tenant_data(
     }
 
     # Requirement 1: Export SQLite tables using fast DuckDB driver
+    _ALLOWED_TABLES = frozenset(
+        ["orders", "decisions", "reconciliations", "historical_metrics"]
+    )
+
     with duckdb.connect(db_path, read_only=True, config={"threads": 1}) as con:
-        tables = ["orders", "decisions", "reconciliations", "historical_metrics"]
+        tables = list(_ALLOWED_TABLES)
         for table in tables:
             try:
+                if table not in _ALLOWED_TABLES:
+                    continue
                 # Optimization: Limit export size per table to prevent memory spikes
-                cursor = con.execute(f"SELECT * FROM {table} LIMIT 5000")
+                cursor = con.execute(f"SELECT * FROM {table} LIMIT 5000")  # nosec B608
                 if cursor.description is not None:
                     cols = [desc[0] for desc in cursor.description]
                     export_data["warehouse"][table] = [

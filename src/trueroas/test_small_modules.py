@@ -6,6 +6,7 @@
 Tests for apply_copyright and business_translator.
 Pure logic — no DB or network dependencies.
 """
+
 import pytest
 from pathlib import Path
 
@@ -213,7 +214,13 @@ def test_cfo_brief_healthy_contains_efficient() -> None:
 
 def test_return_keys_complete() -> None:
     result = translate_to_business_action(2.0, 1.5, 1.5, 0.2, 2.5, 800.0)
-    assert {"status", "capital_health", "capital_bleed_usd", "action_required", "cfo_brief"} == set(result.keys())
+    assert {
+        "status",
+        "capital_health",
+        "capital_bleed_usd",
+        "action_required",
+        "cfo_brief",
+    } == set(result.keys())
 
 
 def test_capital_bleed_precision() -> None:

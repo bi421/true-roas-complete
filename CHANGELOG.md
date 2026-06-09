@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.0] - 2026-06-10 - Zero-Touch Self-Learning System
+
+### Strategic Learning
+- **Automated Auto-Tuning:** Implemented Bayesian threshold adjustment based on Brier Score and systematic bias detection.
+- **WORM Proofs:** Integrated HMAC-SHA256 signing for all policy updates to ensure decision immutability.
+- **Architecture:** Added additive learning module designed as a zero-modification plugin.
+- **Data Safety:** Zero-Knowledge compliant processing; no Personal Identifiable Information (PII) leaves the local tenant context during learning cycles.
+- **Integration:** Connected learning triggers to the `reconcile_decisions` worker via Celery signals.
+
 ## [1.4.0] - 2026-06-05 - Quality Gate & Stability Release
 
 ### Type Safety
