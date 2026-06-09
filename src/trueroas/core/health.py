@@ -18,8 +18,8 @@ async def health() -> dict[str, Any]:
     """
     return {
         "status": "ok",
-        "version": "1.1.0",
-        "built_in": "Austin, TX 🇺🇸",
+        "version": "2.1.0", # Updated version to reflect recent changes
+        "built_in": "mr.Bold.B in Austin, TX 🇺🇸",
         "data_residency": "AWS US-East-1 (Virginia)",
         "compliance": [
             "SOC 2 Type II",

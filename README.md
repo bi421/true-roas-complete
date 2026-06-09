@@ -77,5 +77,5 @@ The production preflight (`production_preflight.ps1`) enforces the following gat
 - `GET /health` — Service health check.
 
 ---
-*Proprietary and Confidential. Copyright (c) 2024-2026 TrueROAS Team.*
-*Built in Austin, TX 🇺🇸*
+*Proprietary and Confidential. Copyright (c) 2024-2026 TrueROAS Team. Built by mr.Bold.B.*
+*Built by mr.Bold.B in Austin, TX 🇺🇸*
