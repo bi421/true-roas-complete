@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrueROAS - Sovereign Analytics Engine</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
+        h2 { margin-top: 0; color: #1a1a1a; font-size: 24px; text-align: center; }
+        p { color: #666; font-size: 14px; text-align: center; margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #444; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; transition: border 0.2s; }
+        input:focus { border-color: #007aff; }
+        button { width: 100%; padding: 12px; background: #007aff; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+        button:hover { background: #0062cc; }
+        #status { margin-top: 15px; font-size: 13px; text-align: center; color: #888; }
+        .secure-tag { display: inline-block; background: #e1f0ff; color: #007aff; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="secure-tag">ZERO-KNOWLEDGE COMPUTATION</div>
+        <h2>TrueROAS Engine</h2>
+        <p>Your data stays on your machine. All calculations are performed in a secure local sandbox.</p>
+        
+        <div class="input-group">
+            <label for="email">Owner Email</label>
+            <input type="email" id="email" placeholder="you@company.com">
+        </div>
+        <div class="input-group">
+            <label for="store_id">Shopify Store ID</label>
+            <input type="text" id="store_id" placeholder="brand-name">
+        </div>
+        <div class="input-group">
+            <label for="meta_token">Meta Access Token</label>
+            <input type="password" id="meta_token" placeholder="••••••••••••">
+        </div>
+        <div class="input-group">
+            <label for="shopify_token">Shopify Access Token</label>
+            <input type="password" id="shopify_token" placeholder="••••••••••••">
+        </div>
+
+        <button id="exportBtn">Run Analytics & Export CSV</button>
+        <div id="status">Ready to compute</div>
+    </div>
+
+    <script type="module">
+        import init, { run_analytics_web } from './pkg/trueroas.js';
+
+        async function start() {
+            await init();
+            const btn = document.getElementById('exportBtn');
+            const status = document.getElementById('status');
+
+            btn.addEventListener('click', async () => {
+                const email = document.getElementById('email').value;
+                const storeId = document.getElementById('store_id').value;
+                const metaT = document.getElementById('meta_token').value;
+                const shopifyT = document.getElementById('shopify_token').value;
+
+                if (!email || !storeId) return alert("Please fill owner info");
+
+                status.innerText = "Reconciling data in RAM...";
+                try {
+                    const hw_info = [navigator.platform, navigator.language, "WebBrowser"];
+                    const csvData = await run_analytics_web(email, storeId, hw_info, metaT, shopifyT);
+                    
+                    const blob = new Blob([csvData], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `trueroas_${storeId}.csv`;
+                    a.click();
+                    status.innerText = "Success. File exported.";
+                } catch (err) {
+                    status.innerText = "Error: " + err;
+                }
+            });
+        }
+        start();
+    </script>
+</body>
+</html>

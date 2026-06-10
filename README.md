@@ -1,81 +1,97 @@
-# TrueROAS: Zero-Knowledge Decision Intelligence
+## TrueROAS – Zero-Knowledge ROAS Engine
 
-Meta reports ROAS. Your bank account reports reality. TrueROAS independently verifies advertising performance and helps brands identify wasted spend before capital is lost.
+### The Problem
+Modern advertising platforms provide performance metrics that frequently diverge from actual financial outcomes. Traditional third-party analytics solutions address this by centralizing sensitive customer PII and order data, creating significant data liability and sovereignty risks for e-commerce brands.
 
-TrueROAS is a high-integrity decision engine for DTC brands. It reconciles Meta Ads signals with Shopify revenue using **Zero-Knowledge Client-Side Compute**. By pivoting the data plane to the edge, TrueROAS allows brands to verify their ROAS without raw order-level and customer-level data ever being transmitted to the TrueROAS Control Plane.
+### Our Architecture (Local-First)
+TrueROAS utilizes a local-first, zero-knowledge architecture. All computation occurs at the edge within a restricted WebAssembly (WASM) environment. By moving the data plane to the client's local infrastructure, raw Shopify orders and Meta Ads spend data never egress from the user's environment.
 
-## Key Value Propositions
+### Phase 1: User Data Protection
+We cannot see your data. Ever. All sensitive information is stored in an encrypted vault located at `~/.trueroas/vault.db`. 
 
-- **Zero-Knowledge Architecture:** Your raw Shopify orders, customer PII, and ad spend never leave your environment. Only the mathematical results (the "Strategic Proof") are transmitted.
-- **WASM-Powered Compute:** High-performance Rust-compiled Bayesian engine runs directly in the user's browser, enabling low-latency local reconciliation without data egress.
-- **Capital Preservation:** Includes a real-time `AdSpendBreaker` (Circuit Breaker) that automatically pauses or flags inefficient campaigns.
-- **Cryptographically Signed Audit Trail:** All strategic decisions are logged in a tamper-evident audit trail with HMAC-SHA256 digital signatures, designed to support audit workflows.
+*   **At-Rest Encryption:** The vault uses SQLCipher with AES-256-CBC.
+*   **Key Derivation:** We utilize PBKDF2-HMAC-SHA256 with 600,000 iterations. The salt is derived from the user's email, and the password is bound to a unique hardware fingerprint (CPU ID and OS version).
+*   **Memory Hygiene:** The `zeroize` crate is used to overwrite sensitive heap buffers on all execution paths, including error states, ensuring secrets do not persist in RAM.
 
-## Core Architecture (Control vs. Data Plane)
+### Phase 2: Code Self-Defense
+TrueROAS is a tamper-reactive binary. Each build is personalized and cryptographically bound to the authorized user.
 
-- **Control Plane (The Backend):** A FastAPI-based orchestrator that handles authentication, licensing, and the aggregation of verified compute proofs. Metadata is stored in PostgreSQL; per-tenant analytics warehouses use SQLite (WAL mode).
-- **Data Plane (The Client):** A local agent (or browser-based WASM engine) that ingests raw data, performs the Bayesian reconciliation, and signs the results with an HMAC-SHA256 key.
+*   **Personalized Build:** A unique `USER_HASH` is embedded into the binary at compile time.
+*   **Integrity Kill Switch:** On startup, the engine performs a BLAKE2b-512 integrity check of its own bytecode.
+*   **Tamper Deterrent:** If tampering or a license mismatch is detected, the binary executes a self-wipe of the first 1MB of its executable.
+*   **Data Poisoning:** Unauthorized instances activate a poisoning routine that corrupts ROAS output by 50%, introducing randomized noise to prevent the use of stolen analytics.
 
-## The Zero-Knowledge Promise
+### Phase 3: Serverless Referral System
+The referral system operates without a central database, preserving the sovereign nature of the application.
 
-TrueROAS is an engine provider, not a data warehouse. We believe that in a privacy-first world, your marketing data is your most sensitive capital asset. Raw order-level and customer-level data remain under customer control. Our architecture is designed so that even if the TrueROAS Control Plane were compromised, an attacker would find zero customer names, zero order values, and zero proprietary spend data—only the final, risk-adjusted performance ratios.
+*   **Identity Generation:** Each user generates an ed25519 keypair locally. The `referral_id` is derived from the base58-encoded public key.
+*   **Aggregated Proofs:** Referrals are verified via aggregated zero-knowledge proofs. No PII of invitees is transmitted; only signed cryptographic commitments are sent to Stripe metadata during the checkout process.
+*   **Dynamic Pricing:** The system calculates pricing tiers ($299 to $0) locally based on verifiable signatures stored in the vault.
 
-## Setup & Installation
+### License & Anti-Tampering
+TrueROAS is closed-source, personal-use software.
 
-1. **Environment Configuration:**
-   Copy `.env.example` to `.env` and configure your `APP_SECRET_SALT` (min 32 chars).
+**You MAY:**
+*   Use on your own Shopify stores.
+*   Build your own dashboard on top of the exported data.
 
-2. **Docker Deployment:**
-   ```bash
-   docker-compose up -d --build
-   ```
+**You MAY NOT:**
+*   Copy, resell, or distribute the binary.
+*   Modify, reverse-engineer, or remove the forensic watermark.
+*   Share your personalized build.
 
-3. **Initialize Database:**
-   ```bash
-   python -m src.trueroas.core.migrations
-   ```
+**Protection:** Each build is cryptographically bound to your email + store ID. The binary self-checks its integrity on startup (BLAKE2b). Tampering violates the license and will result in permanent ban from updates and the Founders Club. We do not use servers – the protection is built into the code itself.
 
-4. **Run Production Preflight Gate:**
-   ```powershell
-   .\production_preflight.ps1
-   ```
+© 2026 TrueROAS. All rights reserved.
 
-## Quality Gate
+### Security Guarantees
 
-The production preflight (`production_preflight.ps1`) enforces the following gates in order:
+| Guarantee | Verification |
+| :--- | :--- |
+| **No Data Exfiltration** | Post-initialization, the binary lacks network syscalls in the WASI runtime. |
+| **No Telemetry** | Source audit confirms zero tracking SDK or analytic endpoint dependencies. |
+| **Hardware-Bound Encryption** | PBKDF2 key derivation binds the vault to the local hardware fingerprint. |
+| **Memory Hygiene** | Secrets implement `ZeroizeOnDrop` to overwrite heap buffers upon deallocation. |
+| **Verifiable Builds** | Personalization anchors builds to unique user salts, preventing binary sharing. |
 
-| Stage | Tool | Requirement |
-|---|---|---|
-| Formatting & Linting | Ruff | Zero violations |
-| Type Safety | mypy --strict | Zero errors across all 103 source files |
-| Security Scan | Bandit | No high-severity findings |
-| Logic & Property Tests | pytest + Hypothesis | 115 tests passing, coverage ≥ 63.19% |
+### Technical Specifications
+*   **Language:** Rust 1.75+
+*   **Target:** `wasm32-wasi`
+*   **Safety:** `#![forbid(unsafe_code)]` enforced across all modules.
+*   **Dependencies:** `rusqlite` (sqlcipher), `zeroize`, `blake2`, `ed25519-dalek`.
+*   **Binary Footprint:** < 5MB.
 
-## Security & Compliance
+### Installation
+TrueROAS provides automated build scripts to simplify the personalization process:
 
-- **Zero-Knowledge Handshake:** The Control Plane verifies the integrity of strategic proofs using a keyed HMAC-SHA256 verification process. The server reconstructs a canonical, minified JSON string of the metrics to ensure 100% signature parity with the Client Data Plane.
-- **Anti-Replay Mechanism:** To prevent "Replay Attacks" (intercepting and re-submitting valid historical data), the system enforces a strictly enforced **5-minute sliding window**. Proofs with a timestamp drift greater than 300 seconds are automatically rejected.
-- **Data Residency:** Built for strictly on-premise or private cloud execution.
-- **Encryption:** PII is hashed using BLAKE2b with per-tenant versioned salts.
-- **Audit Integrity:** WORM-compliant logs prevent the manipulation of historical performance records.
-- **Advanced Reporting:** Export detailed audit reports with charts and pivot summaries to Excel.
+*   **Windows:** Double-click `build_windows.bat`.
+*   **macOS/Linux:** Run `bash build_macos.sh` in your terminal.
 
-### Verification Protocol (Technical)
+These scripts ensure Rust is installed, prompt for your credentials, and compile your personalized WASM binary.
 
-1. **Canonicalization:** Payload keys are sorted alphabetically.
-2. **Serialization:** JSON conversion uses `separators=(',', ':')` to eliminate whitespace discrepancy between Python and Rust/WASM.
-3. **Signing:** `HMAC-SHA256(key=app_salt, msg=canonical_json)`.
-4. **Temporal Validation:** Server validates `abs(now() - payload.timestamp) < 300s`.
+### Verification (How to Audit Us)
 
-## API Endpoints (Quick Reference)
+**Dependency Audit**
+Verify the exclusion of network-capable dependencies and security vulnerabilities:
+```bash
+cargo audit
+```
 
-- `POST /api/v1/proofs` — Submit HMAC-signed compute proofs from the local agent.
-- `GET /api/v1/cfo/dashboard` — View the strategic dashboard generated from verified proofs.
-- `GET /api/v1/decisions/dashboard/capital-saved` — View real-time ROI generated by the system.
-- `GET /api/v1/export/detailed-audit-excel` — Download a comprehensive Excel audit report with charts.
-- `POST /api/v1/leads/` — Capture and initialize a new audit tenant.
-- `GET /health` — Service health check.
+**Vault Encryption**
+Verify that the local database is encrypted and running SQLCipher:
+```bash
+sqlite3 ~/.trueroas/vault.db "PRAGMA cipher_version;"
+```
 
----
-*Proprietary and Confidential. Copyright (c) 2024-2026 TrueROAS Team. Built by mr.Bold.B.*
-*Built by mr.Bold.B in Austin, TX 🇺🇸*
+**Memory Inspection**
+Search for unencrypted PII or secret strings in the compiled WASM binary:
+```bash
+strings target/wasm32-wasi/release/trueroas.wasm | grep -i "secret"
+```
+
+**Tamper Detection Test**
+Manually modify the binary to trigger the integrity protection:
+```bash
+echo "tamper" >> target/wasm32-wasi/release/trueroas.wasm
+# Execute binary to confirm self-wipe/exit
+```

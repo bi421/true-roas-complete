@@ -152,6 +152,22 @@ async def export_detailed_audit_csv(
 
         try:
             with duckdb.connect(db_path, read_only=True) as con:
+                # FB болон Shopify-ийн тулгалтын өгөгдлийг (Tracking Work) нэмэх
+                tracking_rows = con.execute(
+                    """
+                    SELECT clean_date, meta_roas, true_roas, normalized_spend
+                    FROM historical_metrics
+                    WHERE order_id LIKE 'meta_%'
+                    AND clean_date >= CURRENT_DATE - INTERVAL ? DAY
+                    ORDER BY clean_date DESC
+                    """,
+                    [days],
+                ).fetchall()
+
+                for r in tracking_rows:
+                    gap = round(r[1] - r[2], 2)
+                    writer.writerow([f"TRACK_{r[0]}", "FB_SHOPIFY_TRACK", "RECONCILE", r[0], r[1], r[2], f"GAP: {gap}"])
+
                 rows = con.execute(
                     """
                     SELECT decision_id, campaign_id, action, timestamp, expected_roas, confidence_level
@@ -161,6 +177,14 @@ async def export_detailed_audit_csv(
                     """,
                     [days],
                 ).fetchall()
+                
+                # Referral audit нэмэх
+                referral_rows = con.execute(
+                    "SELECT inviter_id, signature, created_at FROM referrals_outbound"
+                ).fetchall()
+                for ref in referral_rows:
+                    writer.writerow([f"REF_{ref[0]}", "REFERRAL", "INVITE", ref[2], "N/A", "1.0", "SIGNED"])
+
                 for row in rows:
                     if row[0] != "dec_scale_camp_a":
                         writer.writerow(list(row) + ["VERIFIED"])
@@ -223,7 +247,7 @@ async def export_detailed_audit_excel(
 
         trend_rows = con.execute(
             """
-            SELECT clean_date, meta_roas, true_roas, normalized_spend
+            SELECT clean_date, meta_roas, true_roas, normalized_spend, true_revenue
             FROM historical_metrics 
             WHERE order_id LIKE 'meta_%' 
             AND clean_date >= CURRENT_DATE - INTERVAL ? DAY
@@ -245,7 +269,7 @@ async def export_detailed_audit_excel(
     )
 
     df_trend = pd.DataFrame(
-        trend_rows, columns=["Date", "Meta ROAS", "True ROAS", "Daily Spend"]
+        trend_rows, columns=["Date", "Meta ROAS", "True ROAS", "Daily Spend", "Shopify Revenue"]
     )
 
     df_trend["Estimated Waste (USD)"] = (

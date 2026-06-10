@@ -31,7 +31,7 @@
         </p>
         <div class="flex flex-col md:flex-row justify-center gap-4">
             <button class="bg-white text-slate-950 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition">Fix My Attribution</button>
-            <button class="border border-slate-800 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition">Watch Demo</button>
+            <button onclick="openModal()" class="border border-slate-800 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition">Watch 60s demo</button>
         </div>
         <div class="mt-16 flex justify-center space-x-12 opacity-50 grayscale invert">
             <img src="https://upload.wikimedia.org/wikipedia/commons/c/c5/Meta_Platforms_Inc._logo.svg" alt="Meta" class="h-6">
@@ -68,5 +68,36 @@
     <footer class="py-12 text-center text-slate-500 text-sm">
         <p>© 2024 TrueROAS Team. Built in Austin, TX 🇺🇸</p>
     </footer>
+
+    <!-- Video Modal -->
+    <div id="videoModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 hidden" onclick="if(event.target === this) closeModal()">
+        <div class="relative w-full max-w-4xl bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white z-10 bg-slate-800/50 p-2 rounded-full transition" aria-label="Close modal">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <div class="aspect-video bg-black">
+                <iframe id="videoPlayer" class="w-full h-full" src="" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openModal() {
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('videoPlayer');
+            // Replace the URL with your actual hosted demo video link
+            player.src = "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"; 
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('videoPlayer');
+            player.src = ""; // Stop video playback on close
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    </script>
 </body>
 </html>
