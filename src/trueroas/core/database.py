@@ -78,9 +78,9 @@ def get_db_path(tenant_id: str) -> str:
 
 def hash_identifier(context: str, value: str, salt: str) -> str:
     """Bridge to security module hashing."""
-    from src.trueroas.core.security import hash_pii
+    from trueroas.core.security import hash_pii
 
-    return hash_pii(context, value, salt)
+    return str(hash_pii(context, value, salt))
 
 
 class DBLayerBridge:

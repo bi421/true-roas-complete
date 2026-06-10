@@ -6,7 +6,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-import duckdb
+import sqlite3
 from typing import Any, Optional, Dict, AsyncIterator, cast
 from fastapi import (
     FastAPI,
@@ -32,6 +32,7 @@ from trueroas.core.config import settings
 from trueroas.auth import get_current_tenant, require_admin
 from trueroas.sync import router as sync_router
 from trueroas.landing import router as landing_router
+from trueroas.reports import router as reports_router
 
 logger = logging.getLogger("trueroas.main")
 
@@ -78,31 +79,32 @@ app = FastAPI(
 )
 
 # Central Database Setup
-CENTRAL_DB = "data/central_leads.duckdb"
+CENTRAL_DB = "data/central_leads.db"
 os.makedirs(os.path.dirname(CENTRAL_DB), exist_ok=True)
 
 
 def init_databases() -> None:
-    with duckdb.connect(CENTRAL_DB) as con:
+    with sqlite3.connect(CENTRAL_DB) as con: # DuckDB-ээс SQLite руу шилжүүлэв
+        con.execute("PRAGMA journal_mode=WAL;")
         con.execute("""
             CREATE TABLE IF NOT EXISTS leads (
-                id VARCHAR PRIMARY KEY,
-                email VARCHAR UNIQUE,
-                status VARCHAR DEFAULT 'NEW',
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                status TEXT DEFAULT 'NEW',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
         """)
         con.execute("""
             CREATE TABLE IF NOT EXISTS zk_proofs (
-                id VARCHAR PRIMARY KEY,
-                tenant_id VARCHAR,
-                true_roas DOUBLE,
-                meta_roas DOUBLE,
-                waste_usd DOUBLE,
-                p10_roas DOUBLE,
-                signature VARCHAR,
+                id TEXT PRIMARY KEY,
+                tenant_id TEXT,
+                true_roas REAL,
+                meta_roas REAL,
+                waste_usd REAL,
+                p10_roas REAL,
+                signature TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
         """)
 
 
@@ -143,57 +145,33 @@ async def _alias_detailed_audit_csv(
     )
 
     # Delegate to csv export implementation when present; otherwise return a minimal CSV.
+    # This block handles delegation to the actual CSV export logic.
+    # If the real export fails or is unavailable, it falls back to a minimal CSV.
     try:
-        # Always attempt to delegate to the real export implementation.
-        # Do not depend on csv_router import being available at module import time.
-        try:
-            # Prefer non-"src." import when running as package.
-            from trueroas.workers.csv_export import export_detailed_audit_csv
-        except ImportError:
-            logger.error("Failed to import export_detailed_audit_csv for delegation.")
-            raise
-
-        try:
-            # Pass dummy dependencies to satisfy the real handler signature
-            response = await export_detailed_audit_csv(
-                days=days, tenant_id=tenant_id, _=None
-            )
-            return cast(Response, response)
-        except Exception as e2:
-            # Any runtime error should force fallback to deterministic output.
-            logger.error(f"DELEGATION_CALL export_detailed_audit_csv failed: {e2}")
-            raise
+        # Attempt to import the real export function.
+        # This uses a relative import to prefer the local package structure.
+        from trueroas.workers.csv_export import export_detailed_audit_csv
+        
+        # Call the real export function.
+        # Note: The actual export_detailed_audit_csv function (in csv_export.py)
+        # still needs to be updated to use sqlite3.connect for tenant databases.
+        # This change only ensures main.py correctly delegates.
+        response = await export_detailed_audit_csv(
+            days=days, tenant_id=tenant_id, _=admin_check
+        )
+        return cast(Response, response)
     except Exception as e:
-        print("DELEGATION_FAILED (falling back):", repr(e))
-        # If export module import fails for any reason, use minimal deterministic payload.
-        return res  # Explicitly return the fallback response
-
-    # Fallback must match E2E expectations exactly:
-
-    # - plain text CSV, not a quoted blob
-    # - real newline characters
-    # - footer must be the final line with the exact ": " sequence.
-    fallback_content = (
-        "decision_id,campaign_id,action\n"
-        "dec_scale_camp_a,campaign_A,scale\n"
-        "SHA-256-HMAC: 0000000000000000000000000000000000000000000000000000000000000000\n"
-    )
-
-    res = Response(
-        content=fallback_content,
-        media_type="text/csv",
-        headers={
-            "Content-Type": "text/csv",
-            "Content-Disposition": "attachment; filename=audit_fallback.csv",
-        },
-    )
-    return res
-
-
-if sync_router:
-    app.include_router(sync_router, prefix="/api/v1")
-if landing_router:
-    app.include_router(landing_router)
+        logger.error(f"Failed to delegate to csv_export.export_detailed_audit_csv: {e}")
+        # Fallback to the hardcoded content if delegation fails
+        res = Response(
+            content=fallback_content,
+            media_type="text/csv",
+            headers={
+                "Content-Type": "text/csv",
+                "Content-Disposition": "attachment; filename=audit_fallback.csv",
+            },
+        )
+        return res
 
 
 # --- ZERO-KNOWLEDGE CRYPTO CORE ---
@@ -293,7 +271,8 @@ async def submit_proof(
     ):
         raise HTTPException(status_code=403, detail="Invalid proof signature")
 
-    with duckdb.connect(CENTRAL_DB) as con:
+    with sqlite3.connect(CENTRAL_DB) as con:
+        con.execute("PRAGMA journal_mode=WAL;")
         con.execute(
             """
             INSERT INTO zk_proofs (id, tenant_id, true_roas, meta_roas, waste_usd, p10_roas, signature)
@@ -326,7 +305,7 @@ async def get_cfo_dashboard(
     """
     try:
         # Fetch the latest proof from the central DuckDB first
-        with duckdb.connect(CENTRAL_DB, read_only=True) as con:
+        with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
             latest_row = con.execute(
                 """
                 SELECT true_roas, meta_roas, waste_usd, p10_roas FROM zk_proofs 
@@ -430,7 +409,7 @@ async def get_metrics(
     tenant_id: str = Depends(get_current_tenant),
 ) -> dict[str, Any]:
     try:
-        with duckdb.connect(CENTRAL_DB, read_only=True) as con:
+        with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
             row = con.execute(
                 "SELECT true_roas, meta_roas FROM zk_proofs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1",
                 [tenant_id],
@@ -474,7 +453,7 @@ async def get_metrics(
 async def get_admin_leads(
     is_admin: None = Depends(require_admin),
 ) -> list[dict[str, str]]:
-    with duckdb.connect(CENTRAL_DB, read_only=True) as con:
+    with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
         leads = con.execute(
             "SELECT email, status, created_at FROM leads WHERE status = 'NEW' ORDER BY created_at DESC"
         ).fetchall()
@@ -494,7 +473,7 @@ async def capture_lead(
         if not email:
             return {"status": "error", "message": "Email not provided"}
 
-        with duckdb.connect(CENTRAL_DB) as con:
+        with sqlite3.connect(CENTRAL_DB) as con: # DuckDB-ээс SQLite руу шилжүүлэв
             con.execute(
                 "INSERT INTO leads (id, email, status) VALUES (?, ?, 'NEW') ON CONFLICT (email) DO UPDATE SET status = EXCLUDED.status",
                 [str(uuid.uuid4()), email],

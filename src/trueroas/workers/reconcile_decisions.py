@@ -1,4 +1,4 @@
-import duckdb
+import sqlite3
 from datetime import timedelta
 
 
@@ -14,7 +14,8 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
     Args:
         db_path (str): The path to the tenant's DuckDB warehouse.
     """
-    with duckdb.connect(db_path) as con:
+    with sqlite3.connect(db_path) as con:
+        con.execute("PRAGMA journal_mode=WAL;")
         # Windows to reconcile: (days_ago, column_suffix, tolerance)
         windows = [
             (7, "7d", 0.35),  # Higher tolerance for partial/lagged data
@@ -31,7 +32,7 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
                 SELECT decision_id, expected_roas, timestamp 
                 FROM decision_audit_trail
                 WHERE reconciled_{suffix}_at IS NULL 
-                AND timestamp <= CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL {days} DAY
+                AND timestamp <= datetime('now', '-{days} day')
             """  # nosec B608
             ).fetchall()
 

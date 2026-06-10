@@ -2,7 +2,7 @@
 #  All rights reserved.
 
 from hypothesis import given, strategies as st
-from src.trueroas.learning.auto_tuner import AutoTuner
+from trueroas.learning.auto_tuner import AutoTuner
 from typing import List, Tuple
 
 

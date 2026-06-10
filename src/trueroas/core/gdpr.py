@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.trueroas.auth import get_current_tenant, require_admin
-from src.trueroas.core.database import get_db_path, get_db_session
-from src.trueroas.core.subscriptions import Tenant
+from trueroas.auth import get_current_tenant, require_admin
+from trueroas.core.database import get_db_path, get_db_session
+from trueroas.core.subscriptions import Tenant
 
 router = APIRouter(prefix="/api/v1/gdpr", tags=["GDPR"])
 
@@ -40,7 +40,7 @@ async def export_tenant_data(
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     db_path = get_db_path(tenant_id)
-    export_data = {
+    export_data: Dict[str, Any] = {
         "metadata": {
             "name": tenant.name,
             "slug": tenant.slug,
@@ -108,7 +108,7 @@ async def erase_subject_data(
 
     operation_id = str(uuid.uuid4())
 
-    from src.trueroas.workers.tasks import hard_purge_subject_task
+    from trueroas.workers.tasks import hard_purge_subject_task
 
     hard_purge_subject_task.delay(
         operation_id=operation_id,

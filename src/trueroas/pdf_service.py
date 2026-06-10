@@ -2,7 +2,7 @@ import uuid
 from typing import Dict, Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 
 
 class PDFService:

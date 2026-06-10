@@ -4,9 +4,9 @@ from typing import Any, Dict
 
 from scipy import stats
 
-from src.trueroas.core.bot_defense import BotDefenseEngine
-from src.trueroas.core.market_config import Settings
-from src.trueroas.core.strategy_content import StrategyContentService
+from trueroas.core.bot_defense import BotDefenseEngine
+from trueroas.core.market_config import Settings
+from trueroas.core.strategy_content import StrategyContentService
 
 
 class MarketDecisionEngine:

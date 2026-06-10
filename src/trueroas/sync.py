@@ -2,9 +2,9 @@ from typing import Optional, Any
 from pydantic import BaseModel
 from fastapi import APIRouter, Request, status, HTTPException
 from celery.result import AsyncResult
-from src.trueroas.core.config import settings
-from src.trueroas.core.limiter import limiter
-from src.trueroas.workers.tasks import celery_app
+from trueroas.core.config import settings
+from trueroas.core.limiter import limiter
+from trueroas.workers.tasks import celery_app
 
 router = APIRouter(tags=["Data Sync"])
 
@@ -22,7 +22,7 @@ class SyncRequest(BaseModel):
 
 
 @router.post("/sync", response_model=SyncResponse, status_code=status.HTTP_202_ACCEPTED)
-@limiter.limit(settings.RATE_LIMIT_SYNC)
+@limiter.limit(settings.RATE_LIMIT_SYNC)  # type: ignore[untyped-decorator]
 async def trigger_sync(request: Request) -> Any:
     """Endpoint deprecated in favor of Zero-Knowledge Client Compute."""
     raise HTTPException(

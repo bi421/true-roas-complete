@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-import duckdb
+import sqlite3
 from datetime import date
 from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel, Field
@@ -80,13 +80,14 @@ async def get_metrics(
 
     db_path = get_db_path(tenant_id)
     try:
-        with duckdb.connect(db_path, read_only=True) as con:
+        with sqlite3.connect(db_path) as con:
+            con.execute("PRAGMA journal_mode=WAL;")
             # Fetch Accuracy Aggregates
             acc_row = con.execute("""
                 SELECT 
-                    AVG(CASE WHEN is_accurate_7d THEN 1.0 ELSE 0.0 END),
-                    AVG(CASE WHEN is_accurate_30d THEN 1.0 ELSE 0.0 END),
-                    AVG(CASE WHEN is_accurate_90d THEN 1.0 ELSE 0.0 END)
+                    AVG(CAST(is_accurate_7d AS FLOAT)),
+                    AVG(CAST(is_accurate_30d AS FLOAT)),
+                    AVG(CAST(is_accurate_90d AS FLOAT))
                 FROM decision_audit_trail
             """).fetchone() or (0.0, 0.0, 0.0)
 
@@ -121,20 +122,33 @@ async def get_metrics(
                 date_filter += " AND clean_date <= ?"
                 params.append(end_date)
 
+            # Уг хэсэгт DuckDB-ийн generate_series-ийг орлох Recursive CTE ашиглан
+            # өгөгдөлгүй өдрүүдийг нөхөж харуулна.
             trend_query = f"""
-                SELECT clean_date, true_roas, meta_roas, (meta_roas - true_roas) * normalized_spend as bleed
-                FROM historical_metrics
-                WHERE 1=1 {date_filter}
-                ORDER BY clean_date ASC
-            """  # nosec B608 — date_filter is built from fixed strings, not user input
-            trends = con.execute(trend_query, params).fetchall()
+                WITH RECURSIVE dates(d) AS (
+                    SELECT date(COALESCE(?, date('now', '-30 days')))
+                    UNION ALL
+                    SELECT date(d, '+1 day') FROM dates
+                    WHERE d < date(COALESCE(?, 'now'))
+                )
+                SELECT 
+                    ds.d, 
+                    COALESCE(hm.true_roas, 0), 
+                    COALESCE(hm.meta_roas, 0), 
+                    COALESCE((hm.meta_roas - hm.true_roas) * hm.normalized_spend, 0) as bleed
+                FROM dates ds
+                LEFT JOIN historical_metrics hm ON ds.d = hm.clean_date AND hm.order_id LIKE 'meta_%'
+                ORDER BY ds.d ASC
+            """
+            # params-ийг Recursive CTE-ийн эхлэл, төгсгөл огноонд тааруулж дамжуулна
+            trends = con.execute(trend_query, [start_date, end_date, start_date, end_date]).fetchall()
 
             # Format for frontend chart consumption
             daily_trends = []
             for r in trends:
                 daily_trends.append(
                     {
-                        "date": r[0].strftime("%Y-%m-%d"),
+                        "date": str(r[0]), # SQLite date() returns string
                         "true_roas": float(round(r[1], 2)),
                         "meta_roas": float(round(r[2], 2)),
                         "capital_bleed_usd": float(round(r[3], 2)),
@@ -163,5 +177,5 @@ async def get_metrics(
             redis_client.set(cache_key, json.dumps(metrics), ex=300)
             return MetricsResponse(**metrics)
 
-    except duckdb.Error:
+    except sqlite3.Error:
         return default_metrics()

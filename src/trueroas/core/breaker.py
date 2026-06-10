@@ -6,14 +6,14 @@ import json
 import logging
 import time
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import redis
 from prometheus_client import Counter, REGISTRY
 from sqlalchemy import text
 
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.config import settings
+from trueroas.core.database import get_db_session
+from trueroas.core.config import settings
 
 logger = logging.getLogger("trueroas.breaker")
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
@@ -134,7 +134,7 @@ class AdSpendBreaker:
                 f"CAPITAL_SAFETY_TRIGGERED: Auto-pausing campaign {campaign_id} for tenant {tenant_id}"
             )
 
-            from src.trueroas.workers.meta_sync import (
+            from trueroas.workers.meta_sync import (
                 MetaCAPI,
             )  # local import avoids circular dep
 
@@ -148,7 +148,7 @@ class AdSpendBreaker:
                     "AUTO_PAUSE_EXECUTED",
                     f"Hard variance {evaluation['hard_avg']} exceeded threshold. Bleed stopped automatically.",
                 )
-            return success
+            return cast(bool, success)
         return False
 
     @staticmethod

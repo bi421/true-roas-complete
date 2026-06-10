@@ -3,9 +3,9 @@ import hmac
 import re
 from pathlib import Path
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import SessionLocal
-from src.trueroas.core.subscriptions import SubscriptionService
+from trueroas.core.config import settings
+from trueroas.core.database import SessionLocal
+from trueroas.core.subscriptions import SubscriptionService
 
 
 def sanitize_tenant_id(tenant_id: str) -> str:

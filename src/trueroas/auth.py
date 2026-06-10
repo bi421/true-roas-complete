@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status, Security, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 import logging
 from typing import Any, cast
 

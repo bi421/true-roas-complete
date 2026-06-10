@@ -6,13 +6,13 @@ import random
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, cast
 
-import duckdb
+import sqlite3
 import httpx
 import redis
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
-from src.trueroas.core.breaker import redis_client
-from src.trueroas.core.config import settings
+from trueroas.core.breaker import redis_client
+from trueroas.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
     """Generates realistic Meta spend data if no access token is provided.
 
     Args:
-        db_path (str): The filesystem path to the tenant's DuckDB warehouse.
+        db_path (str): The filesystem path to the tenant's SQLite warehouse.
 
     Returns:
         dict: Metadata about the synchronization run (mode, days, total_spend).
@@ -30,12 +30,13 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
     account = settings.META_AD_ACCOUNT_ID
 
     # Generate lock key (differentiated by file path)
-    lock_key = f"lock:duckdb:{hashlib.sha256(db_path.encode()).hexdigest()}"
+    lock_key = f"lock:db:{hashlib.sha256(db_path.encode()).hexdigest()}"
 
     # P1 FIX: Increased timeout to 1800s (30 min) to handle large data batches without lock eviction
     try:
         with redis_client.lock(lock_key, timeout=1800, blocking_timeout=30):
-            with duckdb.connect(db_path) as con:
+            with sqlite3.connect(db_path) as con:
+                con.execute("PRAGMA journal_mode=WAL;")
                 if not token:
                     # P1 FIX: Prevent demo data from polluting production DB
                     if (
@@ -90,19 +91,17 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
                 return {"mode": "REAL", "days": 0, "records_processed": 0}
     except redis.exceptions.LockError:
         # tasks.py autoretry_for will catch LockError
-        raise redis.exceptions.LockError(f"DuckDB lock timeout for {db_path}.")  # type: ignore[no-untyped-call]
+        raise redis.exceptions.LockError(f"Database lock timeout for {db_path}.")  # type: ignore[no-untyped-call]
     except Exception as e:
-        with duckdb.connect(db_path) as con:
+        with sqlite3.connect(db_path) as con:
             con.execute(
                 """
-                INSERT INTO sync_metadata (service, last_sync_status, error_message)
-                VALUES ('meta', 'STALE', ?)
-                ON CONFLICT(service) DO UPDATE SET 
-                    last_sync_status = 'STALE', 
-                    error_message = EXCLUDED.error_message
-            """,
+                INSERT OR REPLACE INTO sync_metadata (service, last_sync_status, error_message)
+                VALUES ('meta', 'STALE', ?);
+                """,
                 [str(e)],
             )
+            con.commit()
         raise e
 
 
@@ -281,7 +280,7 @@ class MetaCAPI:
 
 
 if __name__ == "__main__":
-    from src.trueroas.core.migrations import apply_migrations
+    from trueroas.core.migrations import apply_migrations
 
     # Calculate paths for standalone execution from project root
     # This module is located at: src/trueroas/workers/meta_sync.py
@@ -291,6 +290,9 @@ if __name__ == "__main__":
     )
     tenant_db_path = os.path.join(
         project_root, "data", "tenants", "default", "warehouse.duckdb"
+    )
+    tenant_db_path = os.path.join(
+        project_root, "data", "tenants", "default", "warehouse.db"
     )
 
     print(

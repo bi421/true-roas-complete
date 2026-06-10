@@ -1,7 +1,7 @@
 # mypy: ignore-errors
 import pytest
-from src.trueroas.security import sanitize_tenant_id, validate_path, hash_pii
-from src.trueroas.core.config import settings
+from trueroas.security import sanitize_tenant_id, validate_path, hash_pii
+from trueroas.core.config import settings
 
 
 def test_tenant_id_sanitization_and_injection():

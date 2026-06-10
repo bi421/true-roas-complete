@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 import anyio
 
 router = APIRouter()

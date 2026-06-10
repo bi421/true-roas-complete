@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 
 
 def sanitize_tenant_id(tenant_id: str) -> str:

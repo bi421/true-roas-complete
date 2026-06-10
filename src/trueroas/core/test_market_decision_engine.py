@@ -1,10 +1,9 @@
-# mypy: ignore-errors
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 #  Proprietary and confidential.
 
-from src.trueroas.core.market_config import Settings
-from src.trueroas.core.market_decision_engine import MarketDecisionEngine
+from trueroas.core.market_config import Settings
+from trueroas.core.market_decision_engine import MarketDecisionEngine
 
 
 class TestMarketDecisionEngine:
@@ -13,7 +12,7 @@ class TestMarketDecisionEngine:
     and strategic decision logic are working as expected.
     """
 
-    def test_strong_scale_scenario(self):
+    def test_strong_scale_scenario(self) -> None:
         """
         Verifies that high-performing campaigns with high confidence trigger STRONG_SCALE.
         Scenario: Platform ROAS 4.0, Verified 3.5, Large Sample Size (Weight 0.95).
@@ -40,7 +39,7 @@ class TestMarketDecisionEngine:
         assert ledger["breakeven_point"] == Settings.breakeven_roi
         assert "$" in ledger["expected_decision_value"]
 
-    def test_reduce_pause_on_low_roi(self):
+    def test_reduce_pause_on_low_roi(self) -> None:
         """
         Verifies that campaigns significantly below the breakeven threshold trigger REDUCE/PAUSE.
         """
@@ -57,7 +56,7 @@ class TestMarketDecisionEngine:
         assert result["analysis_report"]["recommended_action"] == "REDUCE_OR_HOLD"
         assert result["executive_ledger"]["suggested_adjustment"] == "-50%"
 
-    def test_bot_traffic_penalization(self):
+    def test_bot_traffic_penalization(self) -> None:
         """
         Verifies that high bot risk (abnormally high CTR) results in an ROI penalty
         and critical safety warning.
@@ -82,7 +81,7 @@ class TestMarketDecisionEngine:
         # expected_roi = (5.0 * 0.05) + (1.6 * 0.95) = 0.25 + 1.52 = 1.77
         assert report["real_roi"] == "1.77x"
 
-    def test_hold_observe_on_high_volatility(self):
+    def test_hold_observe_on_high_volatility(self) -> None:
         """
         Verifies that high volatility reduces success probability, leading to a HOLD/OBSERVE status.
         """
@@ -99,7 +98,7 @@ class TestMarketDecisionEngine:
         assert result["analysis_report"]["recommended_action"] == "HOLD/OBSERVE"
         assert result["executive_ledger"]["suggested_adjustment"] == "0%"
 
-    def test_data_reliability_reporting(self):
+    def test_data_reliability_reporting(self) -> None:
         """Checks if data reliability percentage is correctly calculated and reported."""
         result = MarketDecisionEngine.comprehensive_diagnostic(
             4.0, 3.0, 50, 0.2, 0.02, 0.03, 1000.0

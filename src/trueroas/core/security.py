@@ -8,7 +8,7 @@ from typing import cast
 
 from pathlib import Path
 from datetime import datetime, timezone
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 
 
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]

@@ -1,7 +1,7 @@
 # mypy: ignore-errors
 import pytest
 from hypothesis import given, strategies as st
-from src.trueroas.core.inference import DecisionEngine
+from trueroas.core.inference import DecisionEngine
 import random
 
 

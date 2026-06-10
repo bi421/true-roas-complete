@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 #  Proprietary and confidential.
@@ -6,10 +5,10 @@
 import pytest
 from pydantic import ValidationError
 
-from src.trueroas.core.decision_intelligence import GrowthEngine
+from trueroas.core.decision_intelligence import GrowthEngine
 
 
-def test_saturation_only():
+def test_saturation_only() -> None:
     """Must detect ONLY Audience/Saturation."""
     result = GrowthEngine.detect_bottleneck(frequency=5.0, ctr=0.05, cr=0.05)
     assert len(result["issues"]) == 1
@@ -21,7 +20,7 @@ def test_saturation_only():
     assert result["primary_issue"] == issue
 
 
-def test_ctr_only():
+def test_ctr_only() -> None:
     """Must detect ONLY Creative/Attention/CTR."""
     # settings.DEFAULT_BENCHMARK_CTR is 0.015
     result = GrowthEngine.detect_bottleneck(frequency=1.0, ctr=0.005, cr=0.05)
@@ -33,7 +32,7 @@ def test_ctr_only():
     assert result["primary_issue"] == issue
 
 
-def test_cr_only():
+def test_cr_only() -> None:
     """Must detect ONLY Offer/Friction."""
     # settings.DEFAULT_BENCHMARK_CR is 0.025
     result = GrowthEngine.detect_bottleneck(frequency=1.0, ctr=0.05, cr=0.01)
@@ -45,7 +44,7 @@ def test_cr_only():
     assert result["primary_issue"] == issue
 
 
-def test_multiple_issues():
+def test_multiple_issues() -> None:
     """Must detect ALL THREE issues in a priority-sorted list."""
     result = GrowthEngine.detect_bottleneck(frequency=5.0, ctr=0.005, cr=0.01)
     assert len(result["issues"]) == 3
@@ -59,7 +58,7 @@ def test_multiple_issues():
     assert result["primary_issue"]["layer"] == "Audience"
 
 
-def test_no_issues():
+def test_no_issues() -> None:
     """Must detect Financial/Capital Efficiency (default) when healthy."""
     result = GrowthEngine.detect_bottleneck(frequency=1.0, ctr=0.05, cr=0.05)
     assert len(result["issues"]) == 1
@@ -70,7 +69,7 @@ def test_no_issues():
     assert result["primary_issue"] == issue
 
 
-def test_threshold_boundary_strict_inequality():
+def test_threshold_boundary_strict_inequality() -> None:
     """Must NOT trigger at exact threshold values (strict inequality check)."""
     avg_f = 2.5
     avg_c = 0.01
@@ -82,7 +81,7 @@ def test_threshold_boundary_strict_inequality():
     assert result["primary_issue"]["layer"] == "Financial"
 
 
-def test_negative_inputs_validation():
+def test_negative_inputs_validation() -> None:
     """Must raise ValidationError via Pydantic for negative values."""
     with pytest.raises(ValidationError):
         GrowthEngine.detect_bottleneck(frequency=-1.0, ctr=0.05, cr=0.05)

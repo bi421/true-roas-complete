@@ -1,20 +1,19 @@
-# mypy: ignore-errors
-from typing import Any
+from typing import Any, Callable
 
 try:
     import locust
 except ModuleNotFoundError:
     locust = None
 
-HttpUser: Any
-task: Any
+HttpUser: Any = None
+task: Any = None
 
 if locust is None:
 
     class _FallbackHttpUser:
         client = None
 
-    def _fallback_task(func):
+    def _fallback_task(func: Callable[..., Any]) -> Callable[..., Any]:
         return func
 
     HttpUser = _FallbackHttpUser
@@ -24,7 +23,7 @@ else:
     task = locust.task
 
 
-class MetaSyncUser(HttpUser):  # type: ignore[valid-type,misc]
-    @task
-    def sync(self):
+class MetaSyncUser(HttpUser):  # type: ignore[misc]
+    @task  # type: ignore[untyped-decorator]
+    def sync(self) -> None:
         self.client.post("/api/v1/sync", json={"tenant_id": "test"})

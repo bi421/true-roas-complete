@@ -5,7 +5,7 @@ import json
 from typing import Dict, Any, Optional, List, cast
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from src.trueroas.learning.config import learning_settings
+from trueroas.learning.config import learning_settings
 
 
 class PolicyStore:
@@ -19,7 +19,8 @@ class PolicyStore:
 
     def is_enabled(self) -> bool:
         """Checks the LEARNING_ENABLED feature flag from environment."""
-        return learning_settings.learning_enabled
+        return bool(learning_settings.learning_enabled)
+
 
     def save_policy(
         self, tenant_id: str, config: Dict[str, Any], signature: str

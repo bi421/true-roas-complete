@@ -15,15 +15,15 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.subscriptions import (
+from trueroas.core.config import settings
+from trueroas.core.database import get_db_session
+from trueroas.core.subscriptions import (
     Tenant,
     SubscriptionService,
     SubscriptionTier,
     TenantStatus,
 )
-from src.trueroas.core.email_service import (
+from trueroas.core.email_service import (
     send_payment_confirmation,
     send_payment_failure,
 )
@@ -176,11 +176,11 @@ async def _handle_payment_succeeded(db: Session, invoice: Dict[str, Any]) -> Non
     if sub and isinstance(subscription_id, str):
         stripe_sub = stripe.Subscription.retrieve(subscription_id)
         sub.current_period_start = datetime.fromtimestamp(
-            getattr(stripe_sub, "current_period_start")
-        )  # type: ignore[assignment]
+            int(getattr(stripe_sub, "current_period_start"))
+        )
         sub.current_period_end = datetime.fromtimestamp(
-            getattr(stripe_sub, "current_period_end")
-        )  # type: ignore[assignment]
+            int(getattr(stripe_sub, "current_period_end"))
+        )
         sub.status = TenantStatus.ACTIVE
         db.commit()
         logger.info(f"Renewed subscription for tenant {sub.slug}")
@@ -250,7 +250,7 @@ async def shopify_webhook(
             f"Shopify webhook {x_shopify_topic} received for tenant {tenant_id}. Enqueueing processing.",
             extra={"event_type": "shopify_webhook", "tenant_id": tenant_id},
         )
-        from src.trueroas.workers.tasks import process_shopify_webhook_task
+        from trueroas.workers.tasks import process_shopify_webhook_task
 
         process_shopify_webhook_task.delay(tenant_id, x_shopify_topic, payload)
         return {"status": "accepted", "topic": x_shopify_topic}

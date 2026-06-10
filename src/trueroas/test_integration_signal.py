@@ -3,12 +3,12 @@
 
 from unittest.mock import patch, MagicMock
 from typing import Any
-from src.trueroas.learning.integration import on_reconcile_complete
+from trueroas.learning.integration import on_reconcile_complete
 
 
-@patch("src.trueroas.learning.auto_tuner.process_reconciled_batch")
-@patch("src.trueroas.core.config.settings")
-@patch("src.trueroas.learning.integration.learning_settings")
+@patch("trueroas.learning.auto_tuner.process_reconciled_batch")
+@patch("trueroas.core.config.settings")
+@patch("trueroas.learning.integration.learning_settings")
 def test_reconcile_signal_trigger(
     mock_learning_settings: MagicMock,
     mock_settings_core: MagicMock,

@@ -1,9 +1,9 @@
-# mypy: ignore-errors
 # TrueROAS - Functional Verification Script
+import json
 from .market_decision_engine import MarketDecisionEngine
 
 
-def run_demo():
+def run_demo() -> None:
     print("--- TrueROAS Decision Intelligence - Functional Test ---")
 
     # Scenario: Meta reports 4.0 ROAS, but reconciled verified ROAS is only 2.2
@@ -17,8 +17,6 @@ def run_demo():
         current_budget=5000.0,
         vertical="beauty",
     )
-
-    import json
 
     print(json.dumps(result, indent=4, ensure_ascii=False))
 

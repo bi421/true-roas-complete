@@ -5,18 +5,18 @@ import io
 import logging
 import os
 from datetime import datetime
-from typing import Any, AsyncGenerator, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import duckdb
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
-from src.trueroas.auth import get_current_tenant, require_admin
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import SessionLocal, get_db_path
-from src.trueroas.core.security import derive_tenant_salt
-from src.trueroas.core.subscriptions import Tenant
+from trueroas.auth import get_current_tenant, require_admin
+from trueroas.core.config import settings
+from trueroas.core.database import SessionLocal, get_db_path
+from trueroas.core.security import derive_tenant_salt
+from trueroas.core.subscriptions import Tenant
 
 logger = logging.getLogger("trueroas.workers.csv_export")
 router = APIRouter()
@@ -116,7 +116,7 @@ async def export_detailed_audit_csv(
     if not tenant_record:
         central_db.close()
         raise HTTPException(status_code=404, detail="Tenant metadata not found")
-    hmac_key = derive_tenant_salt(cast(str, tenant_record.tenant_secret_salt))
+    hmac_key = derive_tenant_salt(tenant_record.tenant_secret_salt)
     central_db.close()
 
     async def stream_csv_with_checksum() -> AsyncGenerator[str, None]:

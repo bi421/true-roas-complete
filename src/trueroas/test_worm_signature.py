@@ -1,7 +1,7 @@
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 
-from src.trueroas.learning.worm_proof import PolicySigner
+from trueroas.learning.worm_proof import PolicySigner
 from typing import Dict, Any
 
 

@@ -7,7 +7,7 @@ import hmac
 import json
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, cast, Optional, Dict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -15,11 +15,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.trueroas.auth import get_current_tenant
-from src.trueroas.core.breaker import redis_client
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import SessionLocal, get_db_session
-from src.trueroas.core.strategy_content import StrategyContentService
+from trueroas.auth import get_current_tenant
+from trueroas.core.breaker import redis_client
+from trueroas.core.config import settings
+from trueroas.core.database import SessionLocal, get_db_session
+from trueroas.core.strategy_content import StrategyContentService
 
 logger = logging.getLogger("trueroas.decisions")
 
@@ -58,7 +58,7 @@ async def get_capital_saved(
     total_saved = float(redis_client.get(total_key) or 0.0)
 
     # 2. Өнөөдрийн аварсан төсвийг өгөгдлийн сангаас тооцоолох (UTC өдрөөр)
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Filter the results of successful syncs completed today from the tenant's own warehouse
     query = text("""
@@ -71,16 +71,17 @@ async def get_capital_saved(
 
     results = db.execute(query, {"tid": tenant_id, "today": today_start}).fetchall()
 
-    daily_saved = sum(
-        json.loads(row[0]).get("capital_saved", 0.0) for row in results if row[0]
-    )
+    daily_saved: float = 0.0
+    for row in results:
+        if row[0]:
+            daily_saved += float(json.loads(str(row[0])).get("capital_saved", 0.0))
 
     return {
         "tenant_id": tenant_id,
         "capital_saved_today": round(daily_saved, 2),
         "capital_saved_total": round(total_saved, 2),
         "currency": "USD",
-        "last_updated": datetime.utcnow().isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -152,7 +153,7 @@ async def ingest_decision(
                     "user_id": "admin_user",
                     "model_hash": model_hash,
                     "status": "PENDING",
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
             db.commit()
@@ -198,9 +199,9 @@ async def get_decision_report(
     data["assumptions_json"] = json.loads(data["assumptions_json"])
 
     # Convert to JSON string to support lru_cache in StrategyContentService
-    return StrategyContentService.generate_post_mortem(
+    return cast(Dict[str, Any], StrategyContentService.generate_post_mortem(
         json.dumps(data, sort_keys=True, default=str)
-    )
+    ))
 
 
 @router.post("/{decision_id}/approve", status_code=status.HTTP_200_OK)
@@ -221,7 +222,7 @@ async def approve_decision(
     Returns:
         dict: Approval status and decision metadata.
     """
-    approval_ts = datetime.utcnow().isoformat()
+    approval_ts = datetime.now(timezone.utc).isoformat()
 
     result = db.execute(
         text("""

@@ -1,7 +1,7 @@
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 
-import duckdb
+import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Header, Request
@@ -29,11 +29,12 @@ async def get_metrics(
 ) -> MetricsResponse:
     """Fetches all consolidated performance metrics from the database."""
     db_path = get_db_path(x_tenant_id)
-    with duckdb.connect(db_path, read_only=True) as con:
+    with sqlite3.connect(db_path) as con:
+        con.execute("PRAGMA journal_mode=WAL;")
         res = con.execute("""
             SELECT AVG(true_roas), AVG(meta_roas) 
             FROM historical_metrics 
-            WHERE clean_date >= CURRENT_DATE - INTERVAL 7 DAY
+            WHERE clean_date >= date('now', '-7 days')
         """).fetchone()
         if res is None:
             res = (0.0, 0.0)
@@ -57,24 +58,28 @@ async def get_truth_gap_chart_data(
 ) -> dict[str, Any]:
     """Returns time-series data optimized for chart rendering."""
     db_path = get_db_path(x_tenant_id)
-    with duckdb.connect(db_path, read_only=True) as con:
-        # Use generate_series to create last 30 days dates and LEFT JOIN
+    with sqlite3.connect(db_path) as con:
+        con.execute("PRAGMA journal_mode=WAL;")
         query = """
+            WITH RECURSIVE dates(date_series) AS (
+                SELECT date('now', '-29 days')
+                UNION ALL
+                SELECT date(date_series, '+1 day')
+                FROM dates
+                WHERE date_series < date('now')
+            )
             SELECT 
                 ds.date_series, 
-                COALESCE(hm.meta_roas, 0) as meta_roas, 
-                COALESCE(hm.true_roas, 0) as true_roas
-            FROM (
-                SELECT CAST(range AS DATE) AS date_series 
-                FROM generate_series(CURRENT_DATE - INTERVAL 29 DAY, CURRENT_DATE, INTERVAL 1 DAY)
-            ) ds
+                COALESCE(hm.meta_roas, 0), 
+                COALESCE(hm.true_roas, 0)
+            FROM dates ds
             LEFT JOIN historical_metrics hm ON ds.date_series = hm.clean_date AND hm.order_id LIKE 'meta_%'
             ORDER BY ds.date_series ASC
         """
         rows = con.execute(query).fetchall()
 
         return {
-            "labels": [r[0].strftime("%m-%d") for r in rows],
+            "labels": [r[0][5:] for r in rows], # SQLite мөрөөс MM-DD хэсгийг салгаж авах
             "meta_roas": [round(r[1], 2) for r in rows],
             "true_roas": [round(r[2], 2) for r in rows],
         }

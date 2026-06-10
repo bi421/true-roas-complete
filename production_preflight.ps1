@@ -9,8 +9,8 @@ Write-Host "====================================================" -ForegroundCol
 
 # 1. Check string formatting (Ruff)
 Write-Host "🎨 Stage 1: Ruff Formatting & Linting..." -ForegroundColor Yellow
-ruff format .
-ruff check . --fix
+ruff format . --check
+ruff check .
 
 # 2. Static Type Analysis (Mypy)
 Write-Host "🏗️  Stage 2: Mypy Type Analysis..." -ForegroundColor Yellow

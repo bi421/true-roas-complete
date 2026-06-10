@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 #  Proprietary and confidential.
@@ -6,8 +5,11 @@
 import pytest
 import uuid
 import duckdb
+import hmac
+import hashlib
 import jwt
 import warnings
+from typing import Generator
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -28,13 +30,13 @@ warnings.filterwarnings(
 )
 
 
-def generate_token(tenant_id: str, role: str = "user"):
+def generate_token(tenant_id: str, role: str = "user") -> str:
     payload = {"tenant_id": tenant_id, "role": role, "aud": "trueroas-api"}
-    return jwt.encode(payload, settings.APP_SECRET_SALT, algorithm="HS256")
+    return str(jwt.encode(payload, settings.APP_SECRET_SALT, algorithm="HS256"))
 
 
 @pytest.fixture(scope="module")
-def sandbox_tenant():
+def sandbox_tenant() -> Generator[Tenant, None, None]:
     """Setup a sandbox tenant and run initial migrations."""
     db: Session = SessionLocal()
     tenant_id = f"sandbox_{uuid.uuid4().hex[:6]}"
@@ -61,7 +63,7 @@ def sandbox_tenant():
     db.close()
 
 
-def test_full_accountability_lifecycle_automated(sandbox_tenant):
+def test_full_accountability_lifecycle_automated(sandbox_tenant: Tenant) -> None:
     tenant_id = sandbox_tenant.slug
     db_path = get_db_path(tenant_id)
     token = generate_token(tenant_id)
@@ -187,9 +189,6 @@ def test_full_accountability_lifecycle_automated(sandbox_tenant):
     tenant_record = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
     hmac_key = derive_tenant_salt(tenant_record.tenant_secret_salt)
     db.close()
-
-    import hmac
-    import hashlib
 
     csv_body = "\n".join(lines[:-2]) + "\n"
     expected_sig = hmac.new(hmac_key, csv_body.encode(), hashlib.sha256).hexdigest()

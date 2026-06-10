@@ -2,10 +2,10 @@ import os
 import random
 from typing import Dict
 
-import duckdb
+import sqlite3
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.inference import DecisionEngine
+from trueroas.core.config import settings
+from trueroas.core.inference import DecisionEngine
 
 
 def sync_shopify(db_path: str) -> Dict[str, int]:
@@ -16,7 +16,8 @@ def sync_shopify(db_path: str) -> Dict[str, int]:
     token = settings.SHOPIFY_TOKEN
 
     # Use context manager to prevent database locks and ensure clean closures.
-    with duckdb.connect(db_path) as con:
+    with sqlite3.connect(db_path) as con:
+        con.execute("PRAGMA journal_mode=WAL;")
         rows = con.execute(
             "SELECT clean_date, normalized_spend, meta_roas FROM historical_metrics WHERE order_id LIKE 'meta_%'"
         ).fetchall()
@@ -75,7 +76,7 @@ def sync_shopify(db_path: str) -> Dict[str, int]:
 
 
 if __name__ == "__main__":
-    from src.trueroas.core.migrations import apply_migrations
+    from trueroas.core.migrations import apply_migrations
 
     # Calculate paths for standalone execution from project root
     current_file_path = os.path.abspath(__file__)
@@ -84,6 +85,9 @@ if __name__ == "__main__":
     )
     tenant_db_path = os.path.join(
         project_root, "data", "tenants", "default", "warehouse.duckdb"
+    )
+    tenant_db_path = os.path.join(
+        project_root, "data", "tenants", "default", "warehouse.db"
     )
 
     print(

@@ -4,12 +4,12 @@ Handles plan activation, status tracking, and lifecycle events.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Any, cast
+from typing import Optional
 
-from sqlalchemy import Column, DateTime, Enum as SQLEnum, String, Integer, func, Boolean
-from sqlalchemy.orm import Session
+from sqlalchemy import DateTime, Enum as SQLEnum, String, Integer, func, Boolean
+from sqlalchemy.orm import Session, Mapped, mapped_column
 import secrets
 
 from .database import Base
@@ -46,47 +46,46 @@ class Tenant(Base):
 
     __tablename__ = "tenants"
 
-    uuid = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    admin_email = Column(String(255), nullable=True)
-    name = Column(String(255), nullable=False)
-    slug = Column(String(64), nullable=False, unique=True, index=True)
-    sqlite_path = Column(String(1024), nullable=False)  # Validated absolute path
-    tenant_secret_salt = Column(String(64), nullable=False)
-    mfa_secret = Column(String(255), nullable=True)  # Encrypted TOTP secret
-    stripe_customer_id = Column(String(255), nullable=True, unique=True, index=True)
-    stripe_subscription_id = Column(String(255), nullable=True, unique=True)
-    status: Any = Column(
+    uuid: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    admin_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    sqlite_path: Mapped[str] = mapped_column(String(1024), nullable=False)  # Validated absolute path
+    tenant_secret_salt: Mapped[str] = mapped_column(String(64), nullable=False)
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Encrypted TOTP secret
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    status: Mapped[TenantStatus] = mapped_column(
         SQLEnum(TenantStatus), default=TenantStatus.PENDING, nullable=False
     )
-    subscription_tier: Any = Column(SQLEnum(SubscriptionTier), nullable=False)
-    do_not_track = Column(Boolean, default=False, nullable=False)
-    current_period_start = Column(DateTime, nullable=True)
-    current_period_end = Column(DateTime, nullable=True)
+    subscription_tier: Mapped[SubscriptionTier] = mapped_column(SQLEnum(SubscriptionTier), nullable=False)
+    do_not_track: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    current_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Compliance: Opt-in for automated campaign management (ads_management permission)
-    auto_pause_enabled = Column(Boolean, default=False, nullable=False)
+    auto_pause_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=func.now(), nullable=False)
-    updated_at = Column(
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), onupdate=func.now(), nullable=False
     )
-    canceled_at = Column(DateTime, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
+    canceled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Aggregated Marketing Email Stats (PII-free)
-    email_opens = Column(Integer, default=0)
-    email_clicks = Column(Integer, default=0)
-    email_bounces = Column(Integer, default=0)
+    email_opens: Mapped[int] = mapped_column(Integer, default=0)
+    email_clicks: Mapped[int] = mapped_column(Integer, default=0)
+    email_bounces: Mapped[int] = mapped_column(Integer, default=0)
 
     def is_active(self) -> bool:
         """Check if subscription allows system access."""
-        return cast(
-            bool,
+        return (
             self.status == TenantStatus.ACTIVE
             and (
                 self.current_period_end is None
-                or self.current_period_end > datetime.utcnow()
-            ),
+                or self.current_period_end > datetime.now(timezone.utc)
+            )
         )
 
     def __repr__(self) -> str:
@@ -112,16 +111,9 @@ class SubscriptionService:
 
             existing.status = TenantStatus.PENDING
             existing.subscription_tier = plan_type
-            existing.stripe_customer_id = (
-                str(stripe_customer_id) if stripe_customer_id else None  # type: ignore[assignment]
-            )
-            existing.status = TenantStatus.PENDING
-            existing.subscription_tier = plan_type
-            existing.stripe_customer_id = (
-                str(stripe_customer_id) if stripe_customer_id else None  # type: ignore[assignment]
-            )
+            existing.stripe_customer_id = str(stripe_customer_id) if stripe_customer_id else None
 
-            existing.canceled_at = None  # type: ignore[assignment]
+            existing.canceled_at = None
             db.commit()
             return existing
 
@@ -163,12 +155,12 @@ class SubscriptionService:
             db.add(sub)
 
         sub.status = TenantStatus.ACTIVE
-        sub.admin_email = admin_email  # type: ignore[assignment]
+        sub.admin_email = admin_email
         sub.subscription_tier = plan_type
-        sub.stripe_customer_id = stripe_customer_id  # type: ignore[assignment]
-        sub.stripe_subscription_id = stripe_subscription_id  # type: ignore[assignment]
-        sub.current_period_start = period_start  # type: ignore[assignment]
-        sub.current_period_end = period_end  # type: ignore[assignment]
+        sub.stripe_customer_id = stripe_customer_id
+        sub.stripe_subscription_id = stripe_subscription_id
+        sub.current_period_start = period_start
+        sub.current_period_end = period_end
         db.commit()
         db.refresh(sub)
         return sub
@@ -199,7 +191,7 @@ class SubscriptionService:
             raise ValueError(f"No subscription found for tenant {tenant_id}")
 
         sub.status = TenantStatus.SUSPENDED
-        sub.canceled_at = datetime.utcnow()  # type: ignore[assignment]
+        sub.canceled_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(sub)
         return sub

@@ -5,7 +5,7 @@ import sys
 from unittest.mock import patch, MagicMock
 
 
-@patch("src.trueroas.learning.auto_tuner.httpx.Client")
+@patch("trueroas.learning.auto_tuner.httpx.Client")
 def test_learning_proof_zero_knowledge_compliance(mock_httpx: MagicMock) -> None:
     """
     Zero-Knowledge test: Mock the Proof Ingestion endpoint and assert
@@ -37,17 +37,17 @@ def test_learning_proof_zero_knowledge_compliance(mock_httpx: MagicMock) -> None
     with patch.dict(
         sys.modules,
         {
-            "src.trueroas.learning.policy_store": MagicMock(
+            "trueroas.learning.policy_store": MagicMock(
                 PolicyStore=MagicMock(return_value=mock_policy_store_instance)
             ),
-            "src.trueroas.learning.config": MagicMock(
+            "trueroas.learning.config": MagicMock(
                 learning_settings=mock_learning_settings
             ),
-            "src.trueroas.learning.worm_proof": MagicMock(
+            "trueroas.learning.worm_proof": MagicMock(
                 PolicySigner=mock_policy_signer
             ),
-            "src.trueroas.core.config": MagicMock(settings=mock_core_settings),
-            "src.trueroas.core.database": MagicMock(
+            "trueroas.core.config": MagicMock(settings=mock_core_settings),
+            "trueroas.core.database": MagicMock(
                 SessionLocal=MagicMock(
                     return_value=MagicMock(
                         __enter__=MagicMock(return_value=MagicMock()),
@@ -58,7 +58,7 @@ def test_learning_proof_zero_knowledge_compliance(mock_httpx: MagicMock) -> None
         },
     ):
         # Import the function after patching is set up
-        from src.trueroas.learning.auto_tuner import process_reconciled_batch
+        from trueroas.learning.auto_tuner import process_reconciled_batch
 
         # Mock httpx client context manager
         mock_client = MagicMock()

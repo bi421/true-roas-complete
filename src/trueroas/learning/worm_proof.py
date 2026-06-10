@@ -2,7 +2,7 @@ import hmac
 import hashlib
 import json
 from typing import Any
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 
 
 class PolicySigner:

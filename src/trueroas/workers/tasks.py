@@ -17,8 +17,8 @@ from celery.signals import setup_logging, task_failure, task_postrun
 from prometheus_client import Counter, Gauge, Histogram, REGISTRY
 from pythonjsonlogger import jsonlogger
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.email_service import send_email, render_template
+from trueroas.core.config import settings
+from trueroas.core.email_service import send_email, render_template
 
 
 def _get_or_create_metric(
@@ -181,11 +181,8 @@ def on_task_failure(
 ) -> None:
     tenant_id = kwargs.get("tenant_id", args[0] if args else "unknown")
     sender: Any = kwargs_signal.get("sender")
-    task_name = getattr(sender, "name", "unknown") if sender else "unknown"
-    log_meta = _sanitize_task_args(args, kwargs, task_name)
-
-    sender = kwargs_signal.get("sender")
     sender_name = getattr(sender, "name", "unknown") if sender else "unknown"
+    log_meta = _sanitize_task_args(args, kwargs, sender_name)
     logger.error(
         f"Task Failure: {sender_name}",
         extra={
@@ -372,7 +369,7 @@ def reconcile_all_tenants_window(window_days: int) -> None:
 @celery_app.task(queue="low")  # type: ignore[untyped-decorator]
 def cleanup_logs_task() -> None:
     """Control Plane-ийн баталгаажсан proof-үүдийг цэвэрлэх."""
-    with duckdb.connect("data/central_leads.duckdb") as con:
+    with sqlite3.connect("data/central_leads.db") as con:
         con.execute(
             "DELETE FROM compute_proofs WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '90 days'"
         )
@@ -516,7 +513,7 @@ def process_shopify_webhook_task(
     if redis_client.get(idempotency_key):
         return {"status": "ignored", "reason": "already_processed"}
 
-    conn = db_layer.get_connection(tenant_id)
+    conn = None
 
     # 3. Currency Normalization to USD (Authoritative FX source per FTC §314.4(c))
     currency = payload.get("currency", "USD")
@@ -532,6 +529,7 @@ def process_shopify_webhook_task(
     usd_amount = total_price * rates.get(currency, 1.0)
 
     try:
+        conn = db_layer.get_connection(tenant_id)
         if topic == "refunds/create":
             # 4. Handle partial refunds: update net_amount
             refund_amount = sum(
@@ -568,6 +566,11 @@ def process_shopify_webhook_task(
     except Exception as e:
         logger.error(f"Failed processing Shopify webhook {topic} for {tenant_id}: {e}")
         raise
+    finally:
+        if conn:
+            conn.close()
+
+
 
 
 @celery_app.task(queue="low")  # type: ignore[untyped-decorator]
@@ -576,9 +579,9 @@ def purge_deleted_tenants_task() -> None:
 
     Cascades data deletion across SQLite, PostgreSQL, Redis, Stripe, and Resend.
     """
-    from src.trueroas.core.database import SessionLocal, db_layer
-    from src.trueroas.core.email_service import delete_contact
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.database import SessionLocal, db_layer
+    from trueroas.core.email_service import delete_contact
+    from trueroas.core.subscriptions import Tenant
 
     stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -652,15 +655,20 @@ def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str) ->
     db_path = db_layer.get_warehouse_path(tenant_id)
 
     if db_path.exists():
-        conn = db_layer.get_connection(tenant_id)
-        # Requirement 2.a: Overwrite with noise
-        noise = os.urandom(32).hex()
-        conn.execute("UPDATE orders SET meta = ? WHERE meta IS NOT NULL", [noise])
+        conn = None
+        try:
+            conn = db_layer.get_connection(tenant_id)
+            # Requirement 2.a: Overwrite with noise
+            noise = os.urandom(32).hex()
+            conn.execute("UPDATE orders SET meta = ? WHERE meta IS NOT NULL", [noise])
 
-        # Requirement 2.c: Force checkpoint and Vacuum
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-        conn.execute("VACUUM;")
-        logger.info(f"SQLite Cryptographic Erasure complete for {tenant_id}")
+            # Requirement 2.c: Force checkpoint and Vacuum
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+            conn.execute("VACUUM;")
+            logger.info(f"SQLite Cryptographic Erasure complete for {tenant_id}")
+        finally:
+            if conn:
+                conn.close()
 
     # 2. Redis Wipe
     keys = redis_client.keys(f"*:{tenant_id}*")
@@ -723,7 +731,7 @@ def backup_postgresql_task() -> str:
         # e) Registry Update
         from sqlalchemy import text
 
-        from src.trueroas.core.database import SessionLocal
+        from trueroas.core.database import SessionLocal
 
         with SessionLocal() as db:
             db.execute(
@@ -760,9 +768,14 @@ def backup_tenant_sqlite_task(tenant_id: str) -> None:
     backup_path = os.path.join(tempfile.gettempdir(), f"{tenant_id}_backup.db")
 
     try:
-        # d) WAL Checkpoint to ensure no dangling WAL
-        conn = db_layer.get_connection(tenant_id)
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        conn = None
+        try:
+            # d) WAL Checkpoint to ensure no dangling WAL
+            conn = db_layer.get_connection(tenant_id)
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        finally:
+            if conn:
+                conn.close()
 
         # a) Native Online Backup command
         subprocess.run(["sqlite3", str(db_path), f".backup {backup_path}"], check=True)

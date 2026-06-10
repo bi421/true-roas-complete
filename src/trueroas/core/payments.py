@@ -3,9 +3,9 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.subscriptions import SubscriptionService, SubscriptionTier
+from trueroas.core.config import settings
+from trueroas.core.database import get_db_session
+from trueroas.core.subscriptions import SubscriptionService, SubscriptionTier
 
 router = APIRouter(prefix="/api/v1/payments", tags=["Payments"])
 stripe.api_key = settings.STRIPE_SECRET_KEY

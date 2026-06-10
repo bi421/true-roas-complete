@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+
+#  Copyright (c) 2024-2026 TrueROAS Team.
+#  All rights reserved.
+#  Proprietary and confidential.
+
+print('hi')

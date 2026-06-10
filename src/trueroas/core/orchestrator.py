@@ -3,10 +3,10 @@
 #  Proprietary and confidential.
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, cast
 from pydantic import BaseModel, Field
-from src.trueroas.core.inference import BayesianInferenceEngine
-from src.trueroas.core.decision_intelligence import (
+from trueroas.core.inference import BayesianInferenceEngine
+from trueroas.core.decision_intelligence import (
     QualityEngine,
     ReadinessEngine,
     EconomicEngine,
@@ -14,7 +14,7 @@ from src.trueroas.core.decision_intelligence import (
     GrowthEngine,
     RecommendationEngine,
 )
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger("trueroas.orchestrator")
@@ -177,7 +177,7 @@ class DecisionOrchestrator:
 
             # 6. Narrative Generation
             with PIPELINE_STAGE_LATENCY.labels(stage="narrative_generation").time():
-                return RecommendationEngine.build_defensible_advice(
+                return cast(Dict[str, Any], RecommendationEngine.build_defensible_advice(
                     obs=f"Campaign {ctx.campaign_id} analyzed with {ctx.sample_size} orders.",
                     evidence=f"Posterior ROAS: {posterior['reconciled_roas']}x (Interval: {posterior['confidence_interval']})",
                     hypothesis=f"Scaling potential limited by {readiness['bottleneck']}.",
@@ -190,7 +190,7 @@ class DecisionOrchestrator:
                     bot_info=bot_info,
                     monthly_spend=ctx.spend * 30,
                     variance_pct=ctx.variance,
-                )
+                ))
         except Exception as e:
             PIPELINE_ERRORS.labels(
                 tenant_id=ctx.tenant_id, error_type=type(e).__name__

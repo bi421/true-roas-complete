@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional, cast
 import resend
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import SessionLocal
+from trueroas.core.config import settings
+from trueroas.core.database import SessionLocal
 
 logger = logging.getLogger("trueroas.email")
 resend.api_key = settings.RESEND_API_KEY
@@ -94,7 +94,7 @@ def render_template(template_id: str, data: Dict[str, Any]) -> str:
 
 
 async def send_payment_confirmation(tenant_id: str, plan_type: str) -> None:
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.subscriptions import Tenant
 
     with SessionLocal() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
@@ -117,7 +117,7 @@ async def send_payment_confirmation(tenant_id: str, plan_type: str) -> None:
 
 
 async def send_payment_failure(tenant_id: str, retry_url: str) -> None:
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.subscriptions import Tenant
 
     with SessionLocal() as db:
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()

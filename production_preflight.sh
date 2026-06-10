@@ -26,7 +26,22 @@ bandit -r src/ -ll
 
 # 4. Logical Validation & Property Testing
 echo "🧪 Stage 4: Logical Validation & Property Testing..."
-export APP_SECRET_SALT="preflight_test_salt_for_validation_32_chars"
+
+# ШАЛГАЛТ: APP_SECRET_SALT тохируулагдсан эсэх болон аюулгүй байдлыг хангах
+if [ -z "$APP_SECRET_SALT" ]; then
+  echo "🚨 АЛДАА: APP_SECRET_SALT орчны хувьсагч тохируулагдаагүй байна."
+  exit 1
+fi
+
+if [ ${#APP_SECRET_SALT} -lt 32 ]; then
+  echo "🚨 АЛДАА: APP_SECRET_SALT хэтэрхий богино байна (хамгийн багадаа 32 тэмдэгт)."
+  exit 1
+fi
+
+if [ "$APP_SECRET_SALT" == "preflight_test_salt_for_validation_32_chars" ]; then
+  echo "🚨 АЛДАА: Жишээ (placeholder) salt ашиглаж байна. Үйлдвэрлэлд ашиглах нууц үг оруулна уу."
+  exit 1
+fi
 
 # Run all discovered tests to maximize coverage
 pytest --cov=src --cov-append \

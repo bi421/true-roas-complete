@@ -9,19 +9,19 @@ from typing import Any, Dict, Union
 
 import redis
 import stripe
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.subscriptions import (
+from trueroas.core.config import settings
+from trueroas.core.database import get_db_session
+from trueroas.core.subscriptions import (
     SubscriptionService,
     SubscriptionTier,
     Tenant,
     TenantStatus,
 )
-from src.trueroas.core.email_service import (
+from trueroas.core.email_service import (
     send_payment_confirmation,
     send_payment_failure,
 )
@@ -81,8 +81,8 @@ async def is_duplicate(event_id: str) -> bool:
 def verify_shopify_signature(body: bytes, hmac_header: str) -> bool:
     if not settings.SHOPIFY_API_SECRET:
         return False
-    hash = hmac.new(settings.SHOPIFY_API_SECRET.encode(), body, hashlib.sha256).digest()
-    expected_hmac = base64.b64encode(hash).decode()
+    digest = hmac.new(settings.SHOPIFY_API_SECRET.encode(), body, hashlib.sha256).digest()
+    expected_hmac = base64.b64encode(digest).decode()
     return hmac.compare_digest(expected_hmac, hmac_header)
 
 
@@ -100,7 +100,7 @@ async def verify_stripe_signature(payload: bytes, sig_header: str) -> Dict[str, 
 @router.post("/stripe")
 async def stripe_webhook(
     request: Request, db: Session = Depends(get_db_session)
-) -> Any:
+) -> JSONResponse:
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
@@ -216,6 +216,7 @@ def _increment_tenant_counter(tenant: Tenant, field_name: str) -> None:
 @router.post("/shopify", response_model=None)
 async def shopify_webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_shopify_topic: str = Header(...),
     x_shopify_shop_domain: str = Header(...),
     x_shopify_hmac_sha256: str = Header(...),
@@ -230,7 +231,10 @@ async def shopify_webhook(
     await update_cb("shopify", success=True)
     topics = ["orders/create", "orders/updated", "refunds/create"]
     if x_shopify_topic in topics:
-        return {"status": "ignored", "message": "Inbound data sync deprecated."}
+        from trueroas.workers.tasks import process_reconciled_batch
+        tenant_id = x_shopify_shop_domain.replace(".myshopify.com", "")
+        background_tasks.add_task(process_reconciled_batch, tenant_id)
+        return {"status": "success", "message": f"Signal {x_shopify_topic} received and reconciliation queued."}
 
     return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ignored"})
 
@@ -253,7 +257,7 @@ async def meta_data_deletion_callback(request: Request) -> Dict[str, str]:
 @router.post("/resend")
 async def resend_webhook(
     request: Request, db: Session = Depends(get_db_session)
-) -> Any:
+) -> Union[Dict[str, str], JSONResponse]:
     """
     Handles Resend email events (opens, clicks, bounces).
     Updates aggregated stats in central metadata without storing PII.

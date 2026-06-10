@@ -2,8 +2,8 @@
 import hmac
 import hashlib
 import base64
-from src.trueroas.workers.webhooks import verify_shopify_signature
-from src.trueroas.core.config import settings
+from trueroas.workers.webhooks import verify_shopify_signature
+from trueroas.core.config import settings
 
 
 def test_shopify_signature_verification():
@@ -21,8 +21,8 @@ def test_shopify_signature_verification():
 
 def test_subscription_db_initialization():
     """Ensures central DB models are correctly mapped."""
-    from src.trueroas.core.database import SessionLocal
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.database import SessionLocal
+    from trueroas.core.subscriptions import Tenant
 
     db = SessionLocal()
     try:

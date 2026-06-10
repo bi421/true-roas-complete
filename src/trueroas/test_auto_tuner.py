@@ -1,5 +1,5 @@
 from hypothesis import given, strategies as st
-from .learning.auto_tuner import AutoTuner
+from trueroas.learning.auto_tuner import AutoTuner
 
 
 def test_brier_score_logic() -> None:

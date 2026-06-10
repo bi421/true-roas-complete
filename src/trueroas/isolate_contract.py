@@ -5,10 +5,10 @@ import os
 os.environ["APP_SECRET_SALT"] = "test_salt_32_chars_long_exactly_!!"
 os.environ["REDIS_URL"] = "redis://localhost"
 
-from src.trueroas.workers.csv_export import export_detailed_audit_csv
-from src.trueroas.core.database import SessionLocal, get_db_path
-from src.trueroas.core.subscriptions import Tenant, SubscriptionTier, TenantStatus
-from src.trueroas.core.migrations import apply_migrations
+from trueroas.workers.csv_export import export_detailed_audit_csv
+from trueroas.core.database import SessionLocal, get_db_path
+from trueroas.core.subscriptions import Tenant, SubscriptionTier, TenantStatus
+from trueroas.core.migrations import apply_migrations
 
 
 async def run_isolation_test() -> None:

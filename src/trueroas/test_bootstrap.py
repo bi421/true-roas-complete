@@ -2,7 +2,7 @@
 #  All rights reserved.
 
 import pytest
-from .learning.bootstrap import PolicyBootstrapper
+from trueroas.learning.bootstrap import PolicyBootstrapper
 
 
 def test_generate_initial_config_valid() -> None:
