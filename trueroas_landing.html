@@ -3,1200 +3,934 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrueROAS | Your Financial Audit Tool for Marketing Decisions</title>
-    <meta name="description" content="TrueROAS reconciles Meta Ads signals with Shopify revenue using Bayesian Inference. Stop scaling on platform illusions.">
-    
-    <!-- DESIGN SYSTEM: CSS VARIABLES -->
+    <title>TrueROAS | Local-First ROAS Verification for Shopify + Meta Ads</title>
+    <!-- Lightweight Analytics: Plausible -->
+    <script defer data-domain="trueroas.com" src="https://plausible.io/js/script.js"></script>
+    <!-- Chart.js (for visual placeholder) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            /* Colors */
-            --primary-dark: #0f172a;
-            --primary-dark-soft: #1e293b;
-            --primary-accent: #3b82f6;
-            --primary-accent-hover: #2563eb;
-            --secondary-accent: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --bg-light: #f8fafc;
-            --white: #ffffff;
-            --text-primary: #1e293b;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-            --border-dark: #334155;
-
-            /* Typography */
-            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            
-            /* Layout */
-            --container-max: 1200px;
-            --radius-card: 16px;
-            --radius-btn: 10px;
-            --shadow-subtle: 0 4px 24px rgba(15, 23, 42, 0.06);
-            --shadow-hover: 0 20px 50px rgba(15, 23, 42, 0.12);
-            
-            /* Transitions */
-            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --subtext: #4a4a4a;
+            --primary: #000000;
+            --accent: #cd1818;
+            --border: #e1e1e1;
+            --gray-light: #f9f9f9;
         }
-
-        /* BASE STYLES */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
+        * { box-sizing: border-box; }
         body {
-            font-family: var(--font-main);
-            font-size: 18px;
-            line-height: 1.7;
-            color: var(--text-primary);
-            background-color: var(--white);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            margin: 0;
+            padding: 0;
             -webkit-font-smoothing: antialiased;
+            background: var(--bg);
         }
-        h1, h2, h3 { font-weight: 800; color: inherit; letter-spacing: -0.02em; line-height: 1.1; }
-        h1 { font-size: 56px; margin-bottom: 1.5rem; }
-        h2 { font-size: 40px; margin-bottom: 1.25rem; }
-        h3 { font-size: 24px; margin-bottom: 1rem; }
-        p { margin-bottom: 1rem; }
-        ul { list-style: none; }
-        a { text-decoration: none; color: inherit; transition: var(--transition-smooth); }
-
-        .container { max-width: var(--container-max); margin: 0 auto; padding: 0 24px; }
-        .section-padding { padding: 100px 0; }
-        .text-center { text-align: center; }
-        .eyebrow { 
-            font-size: 13px; 
-            font-weight: 600; 
-            letter-spacing: 0.1em; 
-            text-transform: uppercase; 
-            color: var(--primary-accent); 
-            margin-bottom: 1rem; 
-            display: block;
-        }
-
-        /* BUTTONS */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px 32px;
-            font-weight: 700;
-            border-radius: var(--radius-btn);
-            cursor: pointer;
-            border: none;
-            gap: 8px;
-            font-size: 1rem;
-            transition: var(--transition-smooth);
-        }
-        .btn:hover { transform: scale(1.03); }
-        .btn:focus-visible { outline: 3px solid var(--primary-accent); outline-offset: 2px; }
-        .btn-primary { background-color: var(--primary-accent); color: var(--white); }
-        .btn-primary:hover { background-color: var(--primary-accent-hover); box-shadow: var(--shadow-hover); }
-        .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
-        .btn-white-border { background: transparent; border: 1px solid var(--white); color: var(--white); }
-        .btn-white-border:hover { background: rgba(255,255,255,0.1); }
-
-        /* ANIMATIONS */
-        .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
-        .reveal.active { opacity: 1; transform: translateY(0); }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0) translateX(0); }
-            50% { transform: translateY(-20px) translateX(10px); }
-        }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-            70% { box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
-        @keyframes slideProgress {
-            from { width: 0%; }
-            to { width: 100%; }
-        }
-
-        /* SECTION 1: NAVIGATION */
-        nav {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 80px;
-            z-index: 500;
-            display: flex;
-            align-items: center;
-            transition: var(--transition-smooth);
-        }
-        nav.scrolled {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(16px);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            height: 70px;
-        }
-        .nav-container {
+        header {
+            padding: 1.5rem 5%;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%;
-            max-width: var(--container-max);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        .logo {
+            font-weight: 800;
+            font-size: 1.25rem;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        nav a {
+            text-decoration: none;
+            color: var(--text);
+            font-size: 0.95rem;
+            margin-left: 1.5rem;
+            transition: color 0.2s;
+        }
+        nav a:hover { color: var(--accent); }
+
+        section {
+            padding: 4rem 5%;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 0 24px;
-        }
-        .logo-group { display: flex; flex-direction: column; }
-        .logo { font-size: 1.5rem; font-weight: 800; display: flex; align-items: center; gap: 8px; color: var(--white); }
-        .nav.scrolled .logo { color: var(--primary-dark); }
-        .logo-tagline { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary-accent); margin-top: -4px; }
-        
-        .nav-links { display: flex; gap: 32px; font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.8); }
-        .nav.scrolled .nav-links { color: var(--text-primary); }
-        .nav-links a:hover { color: var(--primary-accent); }
-        
-        .nav-actions { display: flex; gap: 16px; align-items: center; }
-        .nav.scrolled .btn-ghost { color: var(--text-primary); }
-        .nav-login { color: var(--white); font-weight: 600; font-size: 15px; }
-        .nav.scrolled .nav-login { color: var(--text-primary); }
-
-        .hamburger { display: none; cursor: pointer; flex-direction: column; gap: 6px; }
-        .hamburger span { width: 24px; height: 2px; background: var(--white); transition: 0.3s; }
-        .nav.scrolled .hamburger span { background: var(--primary-dark); }
-
-        /* Mobile Menu */
-        .mobile-panel {
-            position: fixed;
-            top: 0; right: 0; bottom: 0; width: 300px;
-            background: var(--white);
-            z-index: 600;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            padding: 40px 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-        .mobile-panel.open { transform: translateX(0); }
-        .mobile-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 550;
-            display: none;
         }
 
-        /* SECTION 2: HERO */
+        /* Hero */
         .hero {
-            min-height: 100vh;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, #1e293b 100%);
-            color: var(--white);
-            display: flex;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            padding-top: 80px;
-        }
-        .hero-bg-nodes {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            z-index: 1;
-        }
-        .node-circle {
-            position: absolute;
-            border: 1px solid rgba(59, 130, 246, 0.15);
-            border-radius: 50%;
-            animation: float infinite ease-in-out;
-        }
-        .hero .container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 60px;
-            align-items: center;
-            position: relative;
-            z-index: 2;
-        }
-        .hero-content { max-width: 600px; }
-        .hero-headline { font-size: 56px; margin-bottom: 2rem; }
-        .hero-subheadline { font-size: 20px; color: rgba(255,255,255,0.7); margin-bottom: 2.5rem; }
-        .hero-ctas { display: flex; gap: 16px; margin-bottom: 3rem; }
-        .hero-badges { display: flex; flex-wrap: wrap; gap: 24px; color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 500; }
-        
-        .truth-gap-viz {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 40px;
-            border-radius: 24px;
-            backdrop-filter: blur(8px);
-            position: relative;
-        }
-        .chart-container {
-            height: 300px;
-            display: flex;
-            align-items: flex-end;
-            gap: 40px;
-            justify-content: center;
-            position: relative;
-            padding-bottom: 40px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        .chart-bar {
-            width: 80px;
-            position: relative;
-            border-radius: 8px 8px 0 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: height 1.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .bar-label { position: absolute; top: -30px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-        .bar-meta { background: rgba(59, 132, 246, 0.4); height: 90%; }
-        .bar-truth { background: var(--secondary-accent); height: 60%; }
-        .variance-arrow {
-            position: absolute;
-            right: 40px;
-            top: 30%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: var(--warning);
-            font-weight: 800;
-        }
-
-        /* SECTION 3: PROBLEM */
-        .bg-dark { background-color: var(--primary-dark); color: var(--white); }
-        .problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 60px; }
-        .pain-card {
-            background: #1e293b;
-            padding: 40px;
-            border-radius: var(--radius-card);
-            border: 1px solid #334155;
-            transition: var(--transition-smooth);
-        }
-        .pain-card:hover { transform: translateY(-8px); border-color: var(--primary-accent); }
-        .icon-box { 
-            width: 56px; height: 56px; 
-            background: rgba(59, 130, 246, 0.1); 
-            border-radius: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            color: var(--primary-accent);
-            margin-bottom: 1.5rem;
-        }
-
-        /* SECTION 4: HOW IT WORKS */
-        .bg-light { background-color: var(--bg-light); }
-        .steps-container { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); 
-            gap: 40px; 
-            margin-top: 80px; 
-            position: relative;
-        }
-        .step-item { position: relative; z-index: 2; }
-        .step-num { 
-            font-size: 64px; 
-            font-weight: 900; 
-            color: var(--primary-accent); 
-            opacity: 0.15; 
-            line-height: 1;
-            margin-bottom: -20px;
-            display: block;
-        }
-        .truth-card {
-            background: var(--white);
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: var(--shadow-subtle);
-            margin-top: 80px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
             text-align: center;
-            border: 1px solid var(--border);
+            padding: 6rem 5% 4rem;
         }
-        .badge-pill {
-            padding: 6px 16px;
-            border-radius: 100px;
-            font-size: 14px;
-            font-weight: 700;
+        .tagline {
             display: inline-block;
-            margin-bottom: 12px;
-        }
-        .badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
-        .badge-success { background: rgba(16, 185, 129, 0.1); color: var(--secondary-accent); }
-
-        /* SECTION 5: FEATURES */
-        .features-grid { 
-            display: grid; 
-            grid-template-columns: repeat(3, 2fr); 
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px; 
-            margin-top: 60px; 
-        }
-        .feat-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            padding: 32px;
-            border-radius: var(--radius-card);
-            transition: var(--transition-smooth);
-        }
-        .feat-card:hover { border-color: var(--primary-accent); transform: translateY(-8px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-
-        /* SECTION 6: ARCHITECTURE */
-        .arch-diagram {
-            margin-top: 80px;
-            display: grid;
-            grid-template-columns: 1fr 1.5fr 1fr;
-            gap: 24px;
-            align-items: center;
-        }
-        .arch-col { display: flex; flex-direction: column; gap: 20px; }
-        .arch-node {
-            background: var(--white);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            text-align: center;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: var(--shadow-subtle);
-        }
-        .node-engine {
-            background: var(--primary-accent);
-            color: var(--white);
-            padding: 60px 40px;
-            border-radius: 20px;
-            animation: pulse 2s infinite;
-            font-size: 18px;
-            font-weight: 800;
-        }
-        .tech-badges {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 60px;
-        }
-        .tech-pill {
-            background: #e2e8f0;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-size: 12px;
+            background: var(--gray-light);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
             font-weight: 700;
-            color: var(--text-muted);
-        }
-
-        /* SECTION 8: STATUS */
-        .status-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 60px; }
-        .status-item { 
-            display: flex; gap: 16px; align-items: flex-start; 
-            background: var(--white); padding: 24px; border-radius: 16px; border: 1px solid var(--border);
-        }
-        .beta-card {
-            background: linear-gradient(135deg, var(--primary-accent) 0%, #2563eb 100%);
-            color: var(--white);
-            padding: 60px;
-            border-radius: 24px;
-            margin-top: 80px;
-            text-align: center;
-        }
-        .progress-bar-bg { background: rgba(255,255,255,0.2); height: 12px; border-radius: 100px; margin: 30px 0; overflow: hidden; }
-        .progress-bar-fill { 
-            width: 0%; height: 100%; background: var(--white); 
-            background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent);
-            background-size: 40px 40px;
-            transition: width 1.5s ease-out;
-        }
-
-        /* SECTION 9: PRICING */
-        .pricing-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            margin-bottom: 60px;
-        }
-        .toggle-switch {
-            width: 60px; height: 32px; background: var(--border); border-radius: 100px;
-            position: relative; cursor: pointer; transition: 0.3s;
-        }
-        .toggle-switch.active { background: var(--primary-accent); }
-        .toggle-knob {
-            width: 24px; height: 24px; background: var(--white); border-radius: 50%;
-            position: absolute; top: 4px; left: 4px; transition: 0.3s;
-        }
-        .toggle-switch.active .toggle-knob { left: 32px; }
-
-        .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-        .price-card {
-            background: var(--white);
-            padding: 48px 32px;
-            border-radius: var(--radius-card);
+            font-size: 0.8rem;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             border: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
         }
-        .price-card.featured { border: 2px solid var(--primary-accent); position: relative; }
-        .price-badge {
-            position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
-            background: var(--primary-accent); color: var(--white); padding: 4px 12px;
-            border-radius: 100px; font-size: 12px; font-weight: 800;
+        h1 {
+            font-size: 3.25rem;
+            font-weight: 900;
+            letter-spacing: -1.5px;
+            line-height: 1.1;
+            margin: 0 0 1.5rem;
         }
-        .price-value { font-size: 48px; font-weight: 800; margin: 20px 0; }
-        .price-value span { font-size: 16px; color: var(--text-muted); font-weight: 500; }
-        .price-list { margin-bottom: 40px; flex-grow: 1; }
-        .price-list li { display: flex; gap: 10px; font-size: 15px; margin-bottom: 12px; color: var(--text-primary); }
+        .subheadline {
+            font-size: 1.25rem;
+            color: var(--subtext);
+            max-width: 750px;
+            margin: 0 auto 2.5rem;
+        }
 
-        /* SECTION 11: FINAL CTA */
-        .final-banner {
-            background: linear-gradient(135deg, var(--primary-accent) 0%, #1e40af 100%);
-            color: var(--white);
-            padding: 100px 0;
-            text-align: center;
-        }
+        /* CTA Form */
         .cta-form {
             display: flex;
+            gap: 0.75rem;
+            justify-content: center;
             max-width: 600px;
-            margin: 40px auto 20px;
-            gap: 12px;
+            margin: 0 auto;
+            flex-wrap: wrap;
         }
-        .cta-input {
+        .cta-form input {
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
             flex: 1;
-            padding: 18px 24px;
-            border-radius: 10px;
+            min-width: 280px;
+            font-size: 1rem;
+        }
+        .btn {
+            padding: 1rem 2rem;
+            font-weight: 600;
+            border-radius: 4px;
+            transition: all 0.15s ease;
             border: none;
-            font-size: 16px;
-            outline: none;
+            cursor: pointer;
+            font-size: 1rem;
         }
-        .cta-input:focus { box-shadow: 0 0 0 4px rgba(255,255,255,0.3); }
-        .error-msg { color: #fecaca; font-size: 14px; display: none; margin-top: 10px; }
-
-        /* FOOTER */
-        footer { background: var(--bg-light); padding: 80px 0 40px; border-top: 1px solid var(--border); }
-        .footer-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.2fr; gap: 48px; }
-        .footer-logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-        .footer-title { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 24px; }
-        .footer-links li { margin-bottom: 12px; font-size: 15px; }
-        .footer-links a:hover { color: var(--primary-accent); }
-        .footer-social { display: flex; gap: 16px; margin-top: 24px; }
-        .footer-bottom { 
-            margin-top: 60px; padding-top: 40px; border-top: 1px solid var(--border); 
-            display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-muted);
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary {
+            border: 1px solid var(--border);
+            color: var(--text);
+            background: transparent;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            opacity: 0.9;
+        }
+        .trust-line {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-top: 1rem;
         }
 
-        /* RESPONSIVE */
-        @media (max-width: 1024px) {
-            h1 { font-size: 44px; }
-            .hero .container { grid-template-columns: 1fr; text-align: center; }
-            .hero-content { margin: 0 auto; }
-            .hero-ctas { justify-content: center; }
-            .hero-badges { justify-content: center; }
-            .problem-grid, .steps-container, .features-grid, .pricing-grid { grid-template-columns: 1fr; }
-            .arch-diagram { grid-template-columns: 1fr; }
-            .footer-grid { grid-template-columns: 1fr 1fr; }
+        /* Layout helpers */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; gap: 2.5rem; }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--gray-light);
+            padding: 2.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        h2 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            line-height: 1.2;
+        }
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        ul { padding-left: 1.25rem; margin: 0; }
+        li { margin-bottom: 0.75rem; }
+
+        /* Sample Audit Box */
+        .audit-box {
+            border-left: 4px solid var(--accent);
+            padding-left: 2rem;
+            margin: 2rem auto;
+            max-width: 550px;
+            background: white;
+            padding: 2.5rem;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-top: 8px solid var(--accent);
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .metric-label {
+            font-weight: 600;
+            color: var(--subtext);
+            font-size: 0.95rem;
+        }
+        .metric-value {
+            font-family: monospace;
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+        .risk-value {
+            color: var(--accent);
+            font-size: 1.5rem;
+        }
+
+        /* Tactical Card */
+        .tactical-card {
+            background: var(--gray-light);
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin-top: 1.5rem;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+        .tactical-card h4 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--subtext);
+        }
+        .tactical-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .tactical-list li {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            gap: 0.5rem;
+            line-height: 1.3;
+        }
+        .tactical-list li::before {
+            content: "→";
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Steps */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 3rem;
+            margin-top: 3rem;
+        }
+        .step {
+            position: relative;
+        }
+        .step-num {
+            font-weight: 800;
+            color: var(--border);
+            font-size: 4rem;
+            position: absolute;
+            top: -1rem;
+            left: 0;
+            z-index: -1;
+        }
+        .step-content { padding-top: 1.5rem; }
+
+        /* Chart wrapper */
+        .chart-wrapper {
+            position: relative;
+            height: 320px;
+        }
+        .skeleton-loader {
+            position: absolute;
+            inset: 0;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .skeleton-shimmer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Pricing */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .pricing-card {
+            border: 1px solid var(--border);
+            padding: 2.5rem;
+            border-radius: 8px;
+            text-align: left;
+            position: relative;
+            background: #fff;
+        }
+        .pricing-card.featured { border: 2px solid var(--primary); }
+        .badge {
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .price {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 1.25rem 0;
+        }
+        .price span {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--subtext);
+        }
+        .pricing-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+        }
+        .pricing-card li {
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .pricing-card li::before {
+            content: "✓";
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* FAQ */
+        .faq-item {
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+        .faq-question {
+            font-weight: 600;
+            font-size: 1.05rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .faq-question::after {
+            content: "+";
+            font-size: 1.25rem;
+            color: var(--accent);
+        }
+        .faq-item.active .faq-question::after {
+            content: "-";
+        }
+        .faq-answer {
+            display: none;
+            margin-top: 0.75rem;
+            color: var(--subtext);
+        }
+        .faq-item.active .faq-answer {
+            display: block;
+        }
+
+        /* Final CTA & Footer */
+        .final-cta {
+            text-align: center;
+            background: var(--gray-light);
+            border-top: 1px solid var(--border);
+            margin-top: 4rem;
+            padding-bottom: 4rem;
+        }
+        footer {
+            text-align: center;
+            padding: 3rem 5%;
+            color: var(--subtext);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border);
+        }
+        footer .badges {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        footer .social-links {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+        footer a {
+            color: var(--subtext);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        footer a:hover {
+            text-decoration: underline;
+            color: var(--accent);
+        }
+        footer .disclaimer {
+            font-size: 0.75rem;
+            color: #999;
+            margin: 1.5rem auto 0;
+            max-width: 800px;
+        }
+
+        /* Cookie Banner */
+        .cookie-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: white;
+            padding: 1.25rem 2rem;
+            border-radius: 8px;
+            display: none;
+            z-index: 2000;
+            max-width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.9rem;
         }
         @media (max-width: 768px) {
-            .nav-links, .nav-actions { display: none; }
-            .hamburger { display: flex; }
-            .section-padding { padding: 64px 0; }
-            h1 { font-size: 32px; }
-            h2 { font-size: 26px; }
-            .truth-card { flex-direction: column; gap: 32px; }
-            .cta-form { flex-direction: column; }
-            .footer-grid { grid-template-columns: 1fr; text-align: center; }
-            .footer-social { justify-content: center; }
-            .footer-bottom { flex-direction: column; gap: 20px; }
-        }
-
-        /* PREFERS REDUCED MOTION */
-        @media (prefers-reduced-motion: reduce) {
-            * { animation: none !important; transition: none !important; }
+            .cookie-banner {
+                flex-direction: column;
+                text-align: center;
+                bottom: 10px;
+                left: 10px;
+                transform: none;
+                width: calc(100% - 20px);
+            }
         }
     </style>
 </head>
 <body>
-
-    <!-- SECTION: NAVIGATION -->
-    <nav id="navbar">
-        <div class="nav-container">
-            <div class="logo-group">
-                <a href="#" class="logo" aria-label="TrueROAS Home">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-                    TrueROAS
-                </a>
-                <span class="logo-tagline">Decision Accountability</span>
-            </div>
-
-            <div class="nav-links">
-                <a href="#how-it-works">Product</a>
-                <a href="#how-it-works">How It Works</a>
-                <a href="#features">Features</a>
-                <a href="#pricing">Pricing</a>
-                <a href="#security">Security</a>
-            </div>
-
-            <div class="nav-actions">
-                <a href="#" class="nav-login">Login</a>
-                <button class="btn btn-primary" style="padding: 10px 20px; font-size: 14px;">Start Free Audit</button>
-            </div>
-
-            <div class="hamburger" id="hamburger" aria-label="Open Mobile Menu" aria-expanded="false">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
+<header>
+    <div class="logo">🛡️ TrueROAS</div>
+    <nav>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
     </nav>
+</header>
 
-    <!-- Mobile Menu -->
-    <div class="mobile-overlay" id="mobileOverlay"></div>
-    <div class="mobile-panel" id="mobilePanel">
-        <a href="#how-it-works" class="mobile-link">Product</a>
-        <a href="#how-it-works" class="mobile-link">How It Works</a>
-        <a href="#features" class="mobile-link">Features</a>
-        <a href="#pricing" class="mobile-link">Pricing</a>
-        <a href="#security" class="mobile-link">Security</a>
-        <hr style="border: none; border-top: 1px solid var(--border);">
-        <a href="#" class="btn btn-primary">Start Free Audit</a>
-        <a href="#" class="btn btn-ghost">Login</a>
+<!-- HERO -->
+<section class="hero">
+    <span class="tagline">Enterprise-Grade Decision Accountability</span>
+    <h1>Stop Guessing If Your Meta Ad ROAS Is Real</h1>
+    <p class="subheadline">
+        TrueROAS reconciles Meta's reported performance against your actual bank revenue on your own machine.
+        No Black Box AI. No cloud processing. Just math.
+    </p>
+
+    <div style="margin: 2rem 0; font-size: 2.25rem; font-weight: 900; color: #27ae60;">
+        Example result: \$4,832 in wasted spend identified
+    </div>
+    <p style="font-size: 0.85rem; color: var(--subtext); margin-bottom: 2rem;">
+        *Beta user case. Your results will vary.
+    </p>
+
+    <form class="cta-form" onsubmit="handleLead(event)">
+        <input type="email" id="leadEmail" placeholder="Enter your business email" required>
+        <button type="submit" class="btn btn-primary">
+            Apply for Early Access & Free Reconciliation Audit
+        </button>
+    </form>
+    <p class="trust-line">
+        🔒 Local-first architecture. Your orders and ad data never leave your machine.
+    </p>
+
+    <div style="margin-top: 2rem; opacity: 0.6; font-size: 0.9rem;">
+        ✅ Now accepting applications from US DTC brands & media buyers
+    </div>
+</section>
+
+<!-- PROBLEM / SOLUTION -->
+<section>
+    <div class="grid">
+        <div>
+            <h2>Most tools track history.<br>TrueROAS enforces accountability.</h2>
+            <p style="color: var(--subtext);">
+                Google Analytics tells you what happened. Meta tells you what they want you to believe.
+                TrueROAS tracks <strong>decision accuracy</strong>—the only metric that really matters when you are
+                allocating capital at scale.
+            </p>
+            <ul style="margin-top: 1.5rem;">
+                <li><strong>Outcome reconciliation:</strong> Verify profit 14 days after ad spend using your actual payouts.</li>
+                <li><strong>Attribution gap detection:</strong> Find where Meta overreports ROAS (commonly a 15–40% gap).</li>
+                <li><strong>Safe budget bounds:</strong> Know your minimum ROAS floor before scaling a campaign.</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>Why cloud attribution is not enough</h3>
+            <p style="color: var(--subtext); margin-bottom: 1rem;">
+                Most attribution platforms pull all of your order data and customer PII into <em>their</em> cloud.
+                That creates compliance risk, privacy concerns, and another black-box system that profits when you
+                spend more on ads.
+            </p>
+            <p style="color: var(--subtext);">
+                <strong>TrueROAS is different:</strong> All calculations run locally on your device. We never see
+                your raw order data, customer information, or ad account details. You get independent verification
+                without giving up control.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- SAMPLE AUDIT -->
+<section style="background: var(--gray-light); border-radius: 12px;">
+    <h2 style="text-align: center;">What a TrueROAS audit can catch</h2>
+    <p style="text-align: center; color: var(--subtext); margin-bottom: 2rem;">
+        Sync your Meta Advantage+ campaigns with Shopify bank-truth in minutes.
+    </p>
+
+    <div class="audit-box">
+        <div class="metric-row">
+            <span class="metric-label">Platform signal (Meta Advantage+)</span>
+            <span class="metric-value">5.0x ROAS</span>
+        </div>
+        <div class="metric-row">
+            <span class="metric-label">Verified truth (Shopify payouts)</span>
+            <span class="metric-value">0.2x ROAS</span>
+        </div>
+        <div class="metric-row">
+            <span class="metric-label">Budget waste prevented</span>
+            <span class="metric-value risk-value">\$4,800.00</span>
+        </div>
+        <div class="metric-row">
+            <span class="metric-label">Decision accuracy score</span>
+            <span class="metric-value">14%</span>
+        </div>
+
+        <div class="tactical-card">
+            <h4>Immediate action plan</h4>
+            <ul class="tactical-list">
+                <li>Pause ad sets with > 40% variance between reported and verified ROAS.</li>
+                <li>Cross-check refund logs for orders Meta still counts as "wins".</li>
+                <li>Freeze daily budget increases for 48 hours while the system re-aligns.</li>
+            </ul>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+            <button type="button" class="btn btn-primary" style="font-size: 0.9rem;">
+                Download sample report
+            </button>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.9rem;">
+                Share anonymized results
+            </button>
+        </div>
     </div>
 
-    <main>
-        <!-- SECTION 2: HERO -->
-        <section class="hero">
-            <div class="hero-bg-nodes" id="heroBg"></div>
-            <div class="container">
-                <div class="hero-content reveal">
-                    <span class="eyebrow" style="color: var(--primary-accent);">🔒 Zero-Knowledge Privacy Architecture</span>
-                    <h1 class="hero-headline">The First Zero-Knowledge ROAS Engine.</h1>
-                    <p class="hero-subheadline">
-                        Your Data Never Leaves Your Browser. We verify the math, not your data.
-                    </p>
-                    <div class="hero-ctas">
-                        <button class="btn btn-primary">Start Your Free Audit <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-                        <button class="btn btn-white-border">See How It Works</button>
-                    </div>
-                    <div class="hero-badges">
-                        <span>✅ Bayesian Verified</span>
-                        <span>🔒 Local-First Privacy</span>
-                        <span>⚡ Local Compute (No Data Egress)</span>
-                        <span>📊 Math-Verified ROAS</span>
-                    </div>
-                </div>
+    <div style="max-width: 600px; margin: 2rem auto 1rem; text-align: center;">
+        <p style="font-style: italic; color: var(--subtext);">
+            "TrueROAS found \$23K in hidden refunds that Meta never reported.
+            We cut our ad spend by 30% and profit went up."
+        </p>
+        <p style="font-weight: 600; font-size: 0.9rem;">— Sarah K., DTC apparel founder</p>
+    </div>
+</section>
 
-                <div class="truth-gap-viz reveal" style="transition-delay: 200ms;">
-                    <div class="chart-container">
-                        <div class="chart-bar bar-meta">
-                            <span class="bar-label">Meta Claims: 4.2 ROAS</span>
-                        </div>
-                        <div class="chart-bar bar-truth">
-                            <span class="bar-label" style="color: var(--secondary-accent);">Verified Truth: 2.8 ROAS</span>
-                        </div>
-                        <div class="variance-arrow">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
-                            <span>33% Over-Reported</span>
-                        </div>
-                    </div>
-                    <p style="font-size: 13px; color: rgba(255,255,255,0.4); text-align: center; margin-top: 20px;">
-                        Typical "Truth Gap" observed in iOS 14+ environments.
-                    </p>
+<!-- TRUTH GAP CHART -->
+<section style="text-align: center;">
+    <h2>Visualize the "attribution gap"</h2>
+    <p class="subheadline">
+        See how platform-reported ROAS can drift away from verified revenue as you scale ad spend.
+    </p>
+    <div style="max-width: 900px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 8px;
+                border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div class="chart-wrapper">
+            <div id="chartLoader" class="skeleton-loader">
+                <div class="skeleton-shimmer"></div>
+                <div style="position: absolute; color: var(--subtext); font-weight: 600; font-size: 0.85rem;">
+                    Loading reconciliation view...
                 </div>
             </div>
-        </section>
+            <canvas id="truthGapChart" style="display: none;"></canvas>
+        </div>
+    </div>
+    <p style="font-size: 0.85rem; color: var(--subtext); margin-top: 1.5rem; max-width: 700px; margin-left: auto; margin-right: auto;">
+        <strong>Key insight:</strong> the shaded area represents unverified capital risk.
+        While the platform reports scaling success, TrueROAS shows where your bank account is silently disagreeing.
+    </p>
+</section>
 
-        <!-- SECTION 3: THE PROBLEM -->
-        <section class="section-padding bg-dark">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">The Attribution Crisis</span>
-                    <h2>Your P&L Doesn't Match Meta's Dashboard.<br>That's Costing You 25–35%.</h2>
-                    <p style="color: rgba(255,255,255,0.7); max-width: 800px; margin: 0 auto;">
-                        Since iOS 14+, platform-reported ROAS has become a probabilistic estimate — not a measurement. Marketers are scaling on modeled data while their bank account tells a different story.
-                    </p>
-                </div>
-
-                <div class="problem-grid">
-                    <div class="pain-card reveal">
-                        <div class="icon-box">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
-                        </div>
-                        <h3>Platform Lies</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 16px;">Meta and Google report modeled, not measured data. Attribution windows shrink. Modeled conversions inflate numbers. You're optimizing on fiction.</p>
-                    </div>
-                    <div class="pain-card reveal" style="transition-delay: 100ms;">
-                        <div class="icon-box">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
-                        </div>
-                        <h3>The Truth Gap</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 16px;">Your Shopify shows $50K revenue. Meta claims it drove $70K. That $20K gap isn't 'attribution lag' — it's unverified spend heading toward waste.</p>
-                    </div>
-                    <div class="pain-card reveal" style="transition-delay: 200ms;">
-                        <div class="icon-box">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                        </div>
-                        <h3>Blind Decisions</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 16px;">Without an independent verification layer, every 'scale' decision is a gamble. No mathematical floor. No confidence interval. Just hope.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 4: HOW IT WORKS -->
-        <section id="how-it-works" class="section-padding bg-light">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Bayesian Reconciliation Engine</span>
-                    <h2>From Platform Claims to Verified Truth in 3 Steps.</h2>
-                </div>
-
-                <div class="steps-container">
-                    <div class="step-item reveal">
-                        <span class="step-num">01</span>
-                        <div class="icon-box" style="background: rgba(59,130,246,0.1); margin-top: 20px;">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-                        </div>
-                        <h3>Ingest</h3>
-                        <p>Our local agent pulls ad spend and bank-cleared sales directly to your machine. No raw customer metadata ever touches our servers.</p>
-                    </div>
-                    <div class="step-item reveal" style="transition-delay: 150ms;">
-                        <span class="step-num">02</span>
-                        <div class="icon-box" style="background: rgba(59,130,246,0.1); margin-top: 20px;">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
-                        </div>
-                        <h3>Reconcile</h3>
-                        <p>The Bayesian Engine runs locally on your CPU, filtering platform noise against your actual revenue snapshots.</p>
-                    </div>
-                    <div class="step-item reveal" style="transition-delay: 300ms;">
-                        <span class="step-num">03</span>
-                        <div class="icon-box" style="background: rgba(59,130,246,0.1); margin-top: 20px;">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                        </div>
-                        <h3>Decide</h3>
-                        <p>Only the final computed metrics are sent to your dashboard. You get the verdict without the privacy liability.</p>
-                    </div>
-                </div>
-
-                <div class="truth-card reveal">
-                    <div>
-                        <span class="badge-pill badge-warning">Before TrueROAS</span>
-                        <p style="font-weight: 800; font-size: 24px;">Scaling on Meta's 4.2 ROAS</p>
-                        <p style="color: var(--text-muted); font-size: 15px;">Based on probabilistic modeling.</p>
-                    </div>
-                    <div style="font-size: 40px; color: var(--border);">→</div>
-                    <div>
-                        <span class="badge-pill badge-success">After TrueROAS</span>
-                        <p style="font-weight: 800; font-size: 24px; color: var(--secondary-accent);">Verified 2.8 ROAS</p>
-                        <p style="color: var(--text-muted); font-size: 15px;">94% confidence interval achieved.</p>
-                    </div>
-                    <div style="border-left: 1px solid var(--border); padding-left: 40px;">
-                        <p style="font-weight: 800; font-size: 32px; color: var(--primary-accent);">$340K saved</p>
-                        <p style="color: var(--text-muted); font-size: 15px;">In Q1 by catching over-reporting.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 5: KEY FEATURES -->
-        <section id="features" class="section-padding bg-dark">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Engine Features</span>
-                    <h2>Built for Marketers. Engineered Like a Trading Floor.</h2>
-                </div>
-
-                <div class="features-grid">
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg></div>
-                        <h3>Bayesian Engine</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Empirical Bayes + Bootstrap Fallback. Filters noise from signal. Provides statistically valid ROAS even with sparse data.</p>
-                    </div>
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg></div>
-                        <h3>Bot Defense</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Heuristic CTR/CVR anomaly detection flags low-quality traffic and bot-driven clicks before they burn your budget.</p>
-                    </div>
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6" y2="6"></line><line x1="6" y1="18" x2="6" y2="18"></line></svg></div>
-                        <h3>AdSpendBreaker</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">When Meta vs Shopify variance exceeds 30%, the circuit breaker triggers. Auto-pause campaigns or alert-only mode available.</p>
-                    </div>
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg></div>
-                        <h3>Truth Gap Charts</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Interactive Chart.js visualizations show the exact delta between platform claims and verified revenue. Export to PDF whitepaper.</p>
-                    </div>
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
-                        <h3>Local-First Privacy</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">PII is hashed with BLAKE2b + HMAC-SHA256 per tenant. GDPR compliant. Your customer data never leaves your infrastructure.</p>
-                    </div>
-                    <div class="feat-card reveal">
-                        <div class="icon-box"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-10.6 8.38 8.38 0 0 1 3.8.9L21 3.5Z"></path></svg></div>
-                        <h3>Telegram Bot</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Accountability tier includes a Telegram bot for weekly strategy alerts, variance warnings, and decision-ready summaries.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 6: ARCHITECTURE -->
-        <section class="section-padding bg-light">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Zero-Knowledge Architecture</span>
-                    <h2>🔒 TrueROAS Privacy Architecture</h2>
-                </div>
-
-                <div class="problem-grid" style="margin-top: 40px;">
-                    <div class="pain-card reveal" style="background: var(--white); border: 1px solid var(--border);">
-                        <h3 style="color: var(--primary-dark);">1. Local Agent</h3>
-                        <p style="color: var(--text-muted); font-size: 16px;">You install the TrueROAS local agent. It fetches your Shopify/Meta data directly on your machine.</p>
-                    </div>
-                    <div class="pain-card reveal" style="background: var(--white); border: 1px solid var(--border); transition-delay: 100ms;">
-                        <h3 style="color: var(--primary-dark);">2. Client-Side Math</h3>
-                        <p style="color: var(--text-muted); font-size: 16px;">The Bayesian math runs on your CPU. We never see your orders, revenue, or customer PII.</p>
-                    </div>
-                    <div class="pain-card reveal" style="background: var(--white); border: 1px solid var(--border); transition-delay: 200ms;">
-                        <h3 style="color: var(--primary-dark);">3. Encrypted Proofs</h3>
-                        <p style="color: var(--text-muted); font-size: 16px;">Only the final computed number (e.g., $4,800 Waste) is sent to your dashboard.</p>
-                    </div>
-                </div>
-
-                <div class="text-center reveal" style="margin-top: 40px; padding: 24px; background: rgba(59, 130, 246, 0.05); border-radius: 12px;">
-                    <p style="font-weight: 700; color: var(--primary-dark); margin: 0;">
-                        Don't trust us. Verify the network logs yourself.
-                    </p>
-                </div>
-
-                <div class="tech-badges reveal">
-                    <span class="tech-pill">Python 3.11</span>
-                    <span class="tech-pill">Control Plane (FastAPI)</span>
-                    <span class="tech-pill">WebAssembly</span>
-                    <span class="tech-pill">Redis</span>
-                    <span class="tech-pill">SQLite</span>
-                    <span class="tech-pill">PostgreSQL</span>
-                    <span class="tech-pill">Chart.js</span>
-                    <span class="tech-pill">Empirical Bayes</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 7: SECURITY -->
-        <section id="security" class="section-padding bg-dark">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Enterprise Security</span>
-                    <h2>Your Data Never Leaves. Your Truth Never Lies.</h2>
-                </div>
-
-                <div class="problem-grid" style="grid-template-columns: repeat(2, 1fr);">
-                    <div class="pain-card reveal" style="border-left: 4px solid var(--primary-accent);">
-                        <h3>Local-First by Design</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">In-process Bayesian computation. No calls to OpenAI or external AI APIs. Egress-filtered VPC ensures data isolation.</p>
-                    </div>
-                    <div class="pain-card reveal" style="border-left: 4px solid var(--primary-accent);">
-                        <h3>Cryptographic Isolation</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">BLAKE2b hashing + HMAC-SHA256 keyed integrity per tenant. Data is unrecoverable even in a breach without the master salt.</p>
-                    </div>
-                    <div class="pain-card reveal" style="border-left: 4px solid var(--primary-accent);">
-                        <h3>Tamper-Proof Audit Trail</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Every claim is backed by a Verification Manifest. Nightly Backup-Restore-Tests (BRT) run automatically to ensure data integrity.</p>
-                    </div>
-                    <div class="pain-card reveal" style="border-left: 4px solid var(--primary-accent);">
-                        <h3>Decision Accountability</h3>
-                        <p style="color: rgba(255,255,255,0.6); font-size: 15px;">Structured logging with Request ID middleware. End-to-end traceability from raw webhook to final recommendation.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 8: STATUS -->
-        <section class="section-padding bg-light">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Q2 2024 Readiness</span>
-                    <h2>Production-Grade. Beta-Ready.</h2>
-                </div>
-
-                <div class="status-grid">
-                    <div class="status-item reveal">
-                        <span style="font-size: 24px;">✅</span>
-                        <div>
-                            <h4 style="font-weight: 700;">Frontend: 95%</h4>
-                            <p style="font-size: 14px; color: var(--text-muted);">Fully interactive, mobile-responsive, skeleton loaders ready.</p>
-                        </div>
-                    </div>
-                    <div class="status-item reveal">
-                        <span style="font-size: 24px;">✅</span>
-                        <div>
-                            <h4 style="font-weight: 700;">Backend Core: 80%</h4>
-                            <p style="font-size: 14px; color: var(--text-muted);">Decision orchestrator & database architecture complete.</p>
-                        </div>
-                    </div>
-                    <div class="status-item reveal">
-                        <span style="font-size: 24px;">✅</span>
-                        <div>
-                            <h4 style="font-weight: 700;">Engine Core: Stabilized</h4>
-                            <p style="font-size: 14px; color: var(--text-muted);">Bayesian Reconciliation & Bootstrap Fallback active.</p>
-                        </div>
-                    </div>
-                    <div class="status-item reveal">
-                        <span style="font-size: 24px;">⚠️</span>
-                        <div>
-                            <h4 style="font-weight: 700;">Infrastructure: Scaling</h4>
-                            <p style="font-size: 14px; color: var(--text-muted);">IaC codified; awaiting final production provisioning.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="beta-card reveal">
-                    <h3 style="font-size: 32px; color: var(--white);">🔜 Beta Program Now Open — 0/5 Enterprise Slots Filled</h3>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" id="betaProgress"></div>
-                    </div>
-                    <p>Be among the first 5 enterprise partners to get verified truth before every scaling decision.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 9: PRICING -->
-        <section id="pricing" class="section-padding">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">SaaS Pricing</span>
-                    <h2>Invest in Accountability. Save in Leakage.</h2>
-                </div>
-
-                <div class="pricing-toggle reveal">
-                    <span id="monthlyLabel" style="font-weight: 700;">Monthly</span>
-                    <div class="toggle-switch" id="priceToggle">
-                        <div class="toggle-knob"></div>
-                    </div>
-                    <span id="annualLabel" style="color: var(--text-muted);">Annual (2 Months Free)</span>
-                </div>
-
-                <div class="pricing-grid">
-                    <!-- Starter -->
-                    <div class="price-card reveal">
-                        <h3>Starter</h3>
-                        <div class="price-value">$49<span class="period">/mo</span></div>
-                        <ul class="price-list">
-                            <li>✅ 1 Shopify Store</li>
-                            <li>✅ Monthly Reconciliation Report</li>
-                            <li>✅ Email Variance Alerts</li>
-                            <li>✅ Basic Truth Dashboard</li>
-                        </ul>
-                        <button class="btn btn-ghost">Get Started</button>
-                    </div>
-                    <!-- Core Audit -->
-                    <div class="price-card featured reveal" style="transition-delay: 150ms;">
-                        <div class="price-badge">MOST POPULAR</div>
-                        <h3>Core Audit</h3>
-                        <div class="price-value">$149<span class="period">/mo</span></div>
-                        <ul class="price-list">
-                            <li>✅ 3 Shopify Stores</li>
-                            <li>✅ Weekly Reports</li>
-                            <li>✅ Bot Defense Suite</li>
-                            <li>✅ PDF Verification Exports</li>
-                            <li>✅ Priority Support</li>
-                        </ul>
-                        <button class="btn btn-primary">Start Free Audit</button>
-                    </div>
-                    <!-- Accountability -->
-                    <div class="price-card reveal" style="transition-delay: 300ms;">
-                        <h3>Accountability</h3>
-                        <div class="price-value">$399<span class="period">/mo</span></div>
-                        <ul class="price-list">
-                            <li>✅ Unlimited Stores</li>
-                            <li>✅ Daily Reconciliation</li>
-                            <li>✅ AdSpendBreaker Auto-Pause</li>
-                            <li>✅ Telegram Strategy Bot</li>
-                            <li>✅ Custom Bayesian Priors</li>
-                        </ul>
-                        <button class="btn btn-ghost">Contact Sales</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 10: TESTIMONIALS -->
-        <section class="section-padding bg-dark">
-            <div class="container">
-                <div class="text-center reveal">
-                    <span class="eyebrow">Trusted by teams who can't afford to guess</span>
-                    <h2>Real Numbers. Real Savings. Real Truth.</h2>
-                </div>
-
-                <div class="problem-grid">
-                    <div class="pain-card reveal">
-                        <div style="display: flex; gap: 4px; color: var(--warning); margin-bottom: 1rem;">
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                        </div>
-                        <p style="font-style: italic; color: rgba(255,255,255,0.8);">"Before TrueROAS, we were scaling hard on Meta's 4.2 ROAS. The Bayesian filter revealed our true number was 2.8. That single insight saved us $340K in Q1."</p>
-                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 20px;">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-accent); display: flex; align-items: center; justify-content: center; font-weight: 700;">JD</div>
-                            <div>
-                                <p style="font-weight: 700; margin: 0; font-size: 14px;">Director of Growth</p>
-                                <p style="font-size: 12px; color: var(--text-muted); margin: 0;">8-Figure DTC Brand</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pain-card reveal">
-                        <div style="display: flex; gap: 4px; color: var(--warning); margin-bottom: 1rem;">
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                        </div>
-                        <p style="font-style: italic; color: rgba(255,255,255,0.8);">"The Local-First architecture was non-negotiable. TrueROAS delivered mathematical rigor without forcing our data into someone else's cloud."</p>
-                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 20px;">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: #9333ea; display: flex; align-items: center; justify-content: center; font-weight: 700;">AM</div>
-                            <div>
-                                <p style="font-weight: 700; margin: 0; font-size: 14px;">CTO</p>
-                                <p style="font-size: 12px; color: var(--text-muted); margin: 0;">Enterprise E-commerce ($20M ARR)</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pain-card reveal">
-                        <div style="display: flex; gap: 4px; color: var(--warning); margin-bottom: 1rem;">
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                        </div>
-                        <p style="font-style: italic; color: rgba(255,255,255,0.8);">"AdSpendBreaker caught a campaign anomaly in hour 3, not day 3. The circuit breaker paused the campaign automatically. That's profit over panic."</p>
-                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 20px;">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: #db2777; display: flex; align-items: center; justify-content: center; font-weight: 700;">SK</div>
-                            <div>
-                                <p style="font-weight: 700; margin: 0; font-size: 14px;">Head of Paid Media</p>
-                                <p style="font-size: 12px; color: var(--text-muted); margin: 0;">Performance Agency</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- SECTION 11: FINAL CTA -->
-        <section class="final-banner">
-            <div class="container">
-                <h2 style="color: var(--white);">From Fear of Leakage to Confidence in Accountability.</h2>
-                <p style="color: rgba(255,255,255,0.8); max-width: 600px; margin: 0 auto;">Your next scaling decision shouldn't be a gamble. Join 5 enterprise partners in our exclusive beta.</p>
-                
-                <form class="cta-form" id="betaForm">
-                    <input type="email" class="cta-input" id="ctaEmail" placeholder="Enter your business email" required>
-                    <button type="submit" class="btn" style="background: var(--primary-dark); color: var(--white);">Request Beta Access →</button>
-                </form>
-                <p id="ctaError" class="error-msg">Please enter a valid business email address.</p>
-                
-                <p style="font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 20px;">No credit card required. Local-first deployment available. Cancel anytime.</p>
-            </div>
-        </section>
-    </main>
-
-    <!-- FOOTER -->
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div>
-                    <div class="footer-logo">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary-accent);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-                        TrueROAS
-                    </div>
-                    <p style="font-size: 14px; color: var(--text-muted);">Decision Accountability Platform.</p>
-                    <div class="footer-social">
-                        <a href="#" aria-label="GitHub"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg></a>
-                        <a href="#" aria-label="LinkedIn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg></a>
-                        <a href="#" aria-label="Twitter"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg></a>
-                    </div>
-                </div>
-                <div>
-                    <h4 class="footer-title">Product</h4>
-                    <ul class="footer-links">
-                        <li><a href="#">How It Works</a></li>
-                        <li><a href="#">Features</a></li>
-                        <li><a href="#">Security</a></li>
-                        <li><a href="#">Pricing</a></li>
-                        <li><a href="#">Roadmap</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="footer-title">Resources</h4>
-                    <ul class="footer-links">
-                        <li><a href="#">Whitepaper</a></li>
-                        <li><a href="#">Documentation</a></li>
-                        <li><a href="#">Manifest</a></li>
-                        <li><a href="#">Audit Guide</a></li>
-                        <li><a href="#">Changelog</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="footer-title">Legal</h4>
-                    <ul class="footer-links">
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Terms of Service</a></li>
-                        <li><a href="#">GDPR Compliance</a></li>
-                        <li><a href="#">DPA</a></li>
-                        <li><a href="#">Contact Support</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>© 2024-2026 TrueROAS Team. Proprietary and confidential.</p>
-                <p>Built with Python 3.11, Bayesian Inference, and zero external AI APIs.</p>
+<!-- HOW IT WORKS -->
+<section id="how-it-works">
+    <h2 style="text-align: center;">How TrueROAS fits into your stack</h2>
+    <div class="steps">
+        <div class="step">
+            <span class="step-num">01</span>
+            <div class="step-content">
+                <h3>Connect read‑only APIs</h3>
+                <p style="color: var(--subtext);">
+                    Link your Meta ad account and Shopify store via official OAuth flows.
+                    We only request read‑only access. We cannot change your ads or spend your budget.
+                </p>
             </div>
         </div>
-    </footer>
+        <div class="step">
+            <span class="step-num">02</span>
+            <div class="step-content">
+                <h3>Run local reconciliation</h3>
+                <p style="color: var(--subtext);">
+                    TrueROAS runs entirely on your machine. It matches platform signals against actual orders,
+                    refunds, and payouts, then computes your real ROAS and variance.
+                </p>
+            </div>
+        </div>
+        <div class="step">
+            <span class="step-num">03</span>
+            <div class="step-content">
+                <h3>Act with confidence</h3>
+                <p style="color: var(--subtext);">
+                    Get a clear recommendation: which campaigns to scale, hold, or cut—backed by evidence,
+                    not wishful thinking. Export reports for your team or investors.
+                </p>
+            </div>
+        </div>
+    </div>
+    <p style="text-align: center; font-weight: 600; color: var(--text); margin-top: 2rem;">
+        Setup takes under 5 minutes. No credit card required to join early access.
+    </p>
+</section>
 
-    <!-- SCRIPTS -->
-    <script>
-        // 1. NAVIGATION SCROLL EFFECT
-        const navbar = document.getElementById('navbar');
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 60) {
-                navbar.classList.add('scrolled');
-            } else {
-                navbar.classList.remove('scrolled');
-            }
-        });
+<!-- TRUST / INDEPENDENCE -->
+<section style="background: var(--gray-light); border-radius: 12px;">
+    <h2 style="text-align: center;">Independent performance verification</h2>
+    <div class="grid" style="margin-top: 3rem;">
+        <div class="card">
+            <h3>Not owned by Meta</h3>
+            <p style="color: var(--subtext);">
+                We do not make more money when you increase ad spend. Our incentives are aligned with your
+                profitability, not your gross media budget.
+            </p>
+        </div>
+        <div class="card">
+            <h3>Not owned by Shopify</h3>
+            <p style="color: var(--subtext);">
+                TrueROAS provides an independent view of your marketing performance,
+                separate from any platform’s reporting or attribution model.
+            </p>
+        </div>
+        <div class="card">
+            <h3>Privacy by design</h3>
+            <p style="color: var(--subtext);">
+                All sensitive data stays on your device. We comply with GDPR and CCPA by default
+                because we never store your order data or customer PII.
+            </p>
+        </div>
+    </div>
+</section>
 
-        // 2. MOBILE MENU LOGIC
-        const hamburger = document.getElementById('hamburger');
-        const mobilePanel = document.getElementById('mobilePanel');
-        const mobileOverlay = document.getElementById('mobileOverlay');
-        
-        function toggleMenu() {
-            const isOpen = mobilePanel.classList.toggle('open');
-            mobileOverlay.style.display = isOpen ? 'block' : 'none';
-            hamburger.setAttribute('aria-expanded', isOpen);
+<!-- WHAT YOU RECEIVE -->
+<section>
+    <h2 style="text-align: center;">What every license includes</h2>
+    <div class="grid" style="margin-top: 3rem;">
+        <div class="card">
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 1rem;">
+                    <strong>✅ Executive summary:</strong> a one‑page health score for your ad performance.
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>✅ Reconciliation report:</strong> side‑by‑side view of platform vs. verified ROAS per campaign.
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>✅ Variance analysis:</strong> pinpoint where Meta is over‑ or under‑reporting results.
+                </li>
+            </ul>
+        </div>
+        <div class="card">
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 1rem;">
+                    <strong>✅ Risk assessment:</strong> conservative budget ranges for safe scaling.
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>✅ Actionable next steps:</strong> specific instructions to cut waste and protect margin.
+                </li>
+                <li>
+                    <strong>✅ Lifetime updates (first year):</strong> 12 months of free feature and security updates.
+                </li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="text-align: center;">
+    <h2>Simple, transparent pricing</h2>
+    <p style="color: var(--subtext); max-width: 600px; margin: 0 auto 2rem;">
+        One‑time payment. No recurring fees. Run TrueROAS as often as you like for the stores included in your license.
+    </p>
+
+    <div class="pricing-grid">
+        <div class="pricing-card">
+            <h3>Early Access</h3>
+            <div class="price">\$199<span>/lifetime</span></div>
+            <ul>
+                <li>1 Shopify store + 1 Meta ad account</li>
+                <li>Unlimited reconciliation runs</li>
+                <li>1:1 onboarding call</li>
+                <li>12 months of free updates</li>
+            </ul>
+            <button type="button" onclick="handleLead('early-access')" class="btn btn-primary" style="width: 100%; margin-top: 2rem;">
+                Apply for Early Access
+            </button>
+        </div>
+        <div class="pricing-card featured">
+            <div class="badge">Most Popular</div>
+            <h3>Standard</h3>
+            <div class="price">\$299<span>/lifetime</span></div>
+            <ul>
+                <li>Up to 3 Shopify stores + unlimited ad accounts</li>
+                <li>Advanced variance anomaly detection</li>
+                <li>Priority email support</li>
+                <li>Exportable PDF reports</li>
+            </ul>
+            <button type="button" onclick="handleLead('standard')" class="btn btn-primary" style="width: 100%; margin-top: 2rem;">
+                Get Standard License
+            </button>
+        </div>
+    </div>
+    <p style="margin-top: 2rem; color: var(--subtext); font-size: 0.85rem;">
+        Prices in USD. Payments processed via Stripe. 30‑day money‑back guarantee if you are not satisfied.
+    </p>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="background: var(--gray-light); border-radius: 12px;">
+    <h2 style="text-align: center; margin-bottom: 2rem;">Frequently asked questions</h2>
+    <div style="max-width: 700px; margin: 0 auto;">
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                Is TrueROAS really local‑first? Where does my data go?
+            </div>
+            <div class="faq-answer">
+                Yes. All reconciliation happens in a sandbox on your own computer.
+                We never receive your raw order data, customer PII, or ad account details.
+                Only optional, aggregated metrics may be shared if you choose benchmarking features in the future.
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                How do you connect to Shopify and Meta safely?
+            </div>
+            <div class="faq-answer">
+                You connect through official Shopify and Meta OAuth flows.
+                We request read‑only API scopes only. That means we cannot create ads,
+                change budgets, or modify store settings. You stay in full control.
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                How long does setup take?
+            </div>
+            <div class="faq-answer">
+                Most brands are fully set up in under 5 minutes.
+                Download the app, run the installer, connect your accounts, and start your first reconciliation.
+                Early access licenses include a live onboarding call if you want help.
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                Can I uninstall and remove all data?
+            </div>
+            <div class="faq-answer">
+                Yes. All stored data lives on your device only.
+                Uninstalling the app deletes your local data. We do not keep backups or copies on our side.
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                Is this a subscription or a one‑time purchase?
+            </div>
+            <div class="faq-answer">
+                It is a one‑time lifetime license. There are no recurring fees.
+                Your license includes 12 months of updates; after that, you can keep using your current version indefinitely.
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+    <h2>Find out if your ROAS is real.</h2>
+    <p class="subheadline">
+        It takes a few minutes to connect. Your first reconciliation audit is free for early access brands.
+    </p>
+    <button type="button" onclick="document.querySelector('.hero').scrollIntoView({behavior: 'smooth'})"
+            class="btn btn-primary">
+        Apply for Early Access
+    </button>
+</section>
+
+<!-- COOKIE BANNER -->
+<div id="cookieBanner" class="cookie-banner">
+    <div>
+        We use strictly anonymous, privacy‑friendly analytics to understand how this website is used.
+        We never collect your ad account data, orders, or customer information.
+        <a href="/privacy" style="color: #fff; text-decoration: underline;">Privacy Policy</a>
+    </div>
+    <button type="button" onclick="acceptCookies()" class="btn btn-secondary"
+            style="padding: 0.5rem 1.4rem; font-size: 0.8rem; background: #fff; color: #000; border: none;">
+        Accept
+    </button>
+</div>
+
+<!-- FOOTER -->
+<footer>
+    <div class="badges">
+        <img src="https://img.shields.io/badge/GDPR-Compliant-brightgreen" alt="GDPR Compliant">
+        <img src="https://img.shields.io/badge/CCPA-Ready-blue" alt="CCPA Ready">
+        <img src="https://img.shields.io/badge/Security-Focused-black" alt="Security Focused">
+    </div>
+    <p>Copyright © 2026 TrueROAS. All rights reserved.</p>
+    <p class="disclaimer">
+        TrueROAS is not affiliated with Meta Platforms, Inc. or Shopify Inc.
+        Meta, Advantage+, and related marks are trademarks of Meta. Shopify is a trademark of Shopify Inc.
+    </p>
+    <div class="social-links">
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/dpa">Data Processing Addendum</a>
+        <a href="#" aria-label="Twitter">Twitter</a>
+        <a href="#" aria-label="LinkedIn">LinkedIn</a>
+        <a href="#" aria-label="GitHub">GitHub</a>
+    </div>
+</footer>
+
+<script>
+    // Basic lead handler – replace with your own backend or service
+    function handleLead(eventOrTier) {
+        if (eventOrTier && eventOrTier.preventDefault) {
+            eventOrTier.preventDefault();
+        }
+        const emailInput = document.getElementById('leadEmail');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const tier = typeof eventOrTier === 'string' ? eventOrTier : 'hero';
+
+        if (!email && tier === 'hero') {
+            alert('Please enter your business email so we can follow up.');
+            return;
         }
 
-        hamburger.addEventListener('click', toggleMenu);
-        mobileOverlay.addEventListener('click', toggleMenu);
-        document.querySelectorAll('.mobile-link').forEach(link => link.addEventListener('click', toggleMenu));
+        console.log('Lead captured:', { email, tier });
+        alert('Thank you. We will contact you shortly about TrueROAS early access.');
+        if (emailInput) emailInput.value = '';
+    }
 
-        // 3. REVEAL ON SCROLL ANIMATION
-        const observerOptions = { threshold: 0.15 };
-        const revealObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('active');
-                    
-                    // Special logic for beta progress bar
-                    if(entry.target.classList.contains('beta-card')) {
-                        document.getElementById('betaProgress').style.width = '0%'; // Still 0/5 filled
+    // FAQ toggle
+    function toggleFaq(el) {
+        const item = el.closest('.faq-item');
+        if (!item) return;
+        item.classList.toggle('active');
+    }
+
+    // Cookie banner logic (very simple)
+    function acceptCookies() {
+        localStorage.setItem('trueroas_cookies_accepted', '1');
+        document.getElementById('cookieBanner').style.display = 'none';
+    }
+    (function initCookieBanner() {
+        if (!localStorage.getItem('trueroas_cookies_accepted')) {
+            document.getElementById('cookieBanner').style.display = 'flex';
+        }
+    })();
+
+    // Simple demo chart
+    window.addEventListener('load', function () {
+        const ctx = document.getElementById('truthGapChart');
+        const loader = document.getElementById('chartLoader');
+        if (!ctx || !loader || !window.Chart) return;
+
+        loader.style.display = 'none';
+        ctx.style.display = 'block';
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Day 1', '3', '5', '7', '9', '11', '13'],
+                datasets: [
+                    {
+                        label: 'Meta Reported ROAS',
+                        data: [3.5, 4.0, 4.8, 5.0, 5.2, 5.3, 5.4],
+                        borderColor: '#2c7be5',
+                        backgroundColor: 'rgba(44,123,229,0.1)',
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Bank-Verified ROAS',
+                        data: [1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.7],
+                        borderColor: '#cd1818',
+                        backgroundColor: 'rgba(205,24,24,0.1)',
+                        borderWidth: 2,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: { enabled: true }
+                },
+                scales: {
+                    y: {
+                        title: { display: true, text: 'ROAS' },
+                        beginAtZero: true
                     }
                 }
-            });
-        }, observerOptions);
-
-        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
-
-        // 4. HERO BACKGROUND ANIMATION
-        const heroBg = document.getElementById('heroBg');
-        for (let i = 0; i < 10; i++) {
-            const circle = document.createElement('div');
-            const size = Math.random() * 40 + 20;
-            circle.className = 'node-circle';
-            circle.style.width = `${size}px`;
-            circle.style.height = `${size}px`;
-            circle.style.top = `${Math.random() * 100}%`;
-            circle.style.left = `${Math.random() * 100}%`;
-            circle.style.animationDuration = `${Math.random() * 7 + 8}s`;
-            circle.style.animationDelay = `${Math.random() * 5}s`;
-            heroBg.appendChild(circle);
-        }
-
-        // 5. PRICING TOGGLE
-        const priceToggle = document.getElementById('priceToggle');
-        const monthlyLabel = document.getElementById('monthlyLabel');
-        const annualLabel = document.getElementById('annualLabel');
-        const prices = document.querySelectorAll('.price-value');
-        
-        const monthlyPrices = ['$49', '$149', '$399'];
-        const annualPrices = ['$39', '$119', '$319'];
-
-        priceToggle.addEventListener('click', () => {
-            const isActive = priceToggle.classList.toggle('active');
-            monthlyLabel.style.color = isActive ? 'var(--text-muted)' : 'var(--text-primary)';
-            annualLabel.style.color = isActive ? 'var(--text-primary)' : 'var(--text-muted)';
-            
-            prices.forEach((el, index) => {
-                const val = isActive ? annualPrices[index] : monthlyPrices[index];
-                el.innerHTML = `${val}<span class="period">/mo</span>`;
-            });
-        });
-
-        // 6. FORM VALIDATION
-        const betaForm = document.getElementById('betaForm');
-        const ctaEmail = document.getElementById('ctaEmail');
-        const ctaError = document.getElementById('ctaError');
-
-        betaForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = betaForm.querySelector('button');
-            const email = ctaEmail.value.trim();
-            const originalBtnText = submitBtn.innerHTML;
-            
-            // Simple validation regex
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                ctaError.textContent = "Please enter a valid business email address.";
-                ctaError.style.display = 'block';
-                ctaEmail.style.borderColor = 'var(--danger)';
-                return;
-            }
-
-            ctaError.style.display = 'none';
-            ctaEmail.style.borderColor = 'var(--secondary-accent)';
-            
-            // UI State: Loading & Cold Start Awareness
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span style="opacity: 0.8;">Waking up server...</span>';
-            submitBtn.style.opacity = '0.7';
-            
-            // Render Free Tier can take up to 60s to wake up
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 65000); 
-
-            try {
-                const response = await fetch('/api/v1/leads', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-                const data = await response.json();
-
-                if (response.ok && (data.status === 'success' || data.status === 'success!')) {
-                    // Success State
-                    submitBtn.textContent = 'Success! Slot Reserved';
-                    submitBtn.style.background = 'var(--secondary-accent)';
-                    ctaEmail.value = '';
-                    
-                    // UX: Smoothly transition form to success message
-                    setTimeout(() => {
-                        betaForm.innerHTML = '<div style="padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; border: 1px solid var(--secondary-accent);"><h3 style="margin: 0; color: var(--white);">Verification Request Received.</h3><p style="margin: 10px 0 0; font-size: 16px; color: rgba(255,255,255,0.8);">We will contact you shortly at <strong>' + email + '</strong>.</p></div>';
-                    }, 800);
-                } else {
-                    throw new Error(data.message || 'Submission failed');
-                }
-            } catch (err) {
-                console.error("API Error:", err);
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.style.opacity = '1';
-                
-                ctaError.textContent = err.name === 'AbortError' 
-                    ? "The server is taking longer than usual to wake up. Please try one more time."
-                    : "Connection failed. Please check your internet or try again in 30 seconds.";
-                ctaError.style.display = 'block';
             }
         });
-
-        ctaEmail.addEventListener('input', () => {
-            ctaError.style.display = 'none';
-            ctaEmail.style.borderColor = 'transparent';
-        });
-    </script>
+    });
+</script>
 </body>
 </html>
