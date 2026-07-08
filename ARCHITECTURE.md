@@ -1,6 +1,6 @@
 # TrueROAS Systems Architecture: Zero-Knowledge Model
 
-TrueROAS utilizes a strictly decoupled architecture that separates the **Control Plane** (Cloud Orchestrator) from the **Data Plane** (Client-Side Compute).
+TrueROAS utilizes a strictly decoupled architecture that separates the **Control Plane** (Cloud Orchestrator) from the **Data Plane** (Client-Side Compute). The Control Plane's threshold tuning is pure Python (`src/trueroas/learning/auto_tuner.py`, `AutoTuner.compute_new_threshold`) using Brier score with sample-size dampening; it does not rely on a WASM learning core via wasmer.
 
 ## 1. Architectural Philosophy
 

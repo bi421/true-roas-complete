@@ -6,6 +6,8 @@ Modern advertising platforms provide performance metrics that frequently diverge
 ### Our Architecture (Local-First)
 TrueROAS utilizes a local-first, zero-knowledge architecture. All computation occurs at the edge within a restricted WebAssembly (WASM) environment. By moving the data plane to the client's local infrastructure, raw Shopify orders and Meta Ads spend data never egress from the user's environment.
 
+The server-side Control Plane performs threshold tuning in pure Python (`src/trueroas/learning/auto_tuner.py`, `AutoTuner.compute_new_threshold`), using Brier score with sample-size dampening; it does not call a WASM learning core via wasmer.
+
 ### Phase 1: User Data Protection
 We cannot see your data. Ever. All sensitive information is stored in an encrypted vault located at `~/.trueroas/vault.db`. 
 
