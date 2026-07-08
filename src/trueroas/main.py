@@ -305,7 +305,7 @@ async def get_cfo_dashboard(
     """
     try:
         # Fetch the latest proof from the central DuckDB first
-        with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
+        with sqlite3.connect(f"file:{CENTRAL_DB}?mode=ro", uri=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
             latest_row = con.execute(
                 """
                 SELECT true_roas, meta_roas, waste_usd, p10_roas FROM zk_proofs 
@@ -409,7 +409,7 @@ async def get_metrics(
     tenant_id: str = Depends(get_current_tenant),
 ) -> dict[str, Any]:
     try:
-        with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
+        with sqlite3.connect(f"file:{CENTRAL_DB}?mode=ro", uri=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
             row = con.execute(
                 "SELECT true_roas, meta_roas FROM zk_proofs WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1",
                 [tenant_id],
