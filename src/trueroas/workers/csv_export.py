@@ -8,15 +8,21 @@ from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import duckdb
-import pandas as pd
+
+try:
+    import pandas as pd  # type: ignore
+except ImportError:  # pragma: no cover
+    pd = None
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
-from trueroas.auth import get_current_tenant, require_admin
-from trueroas.core.config import settings
-from trueroas.core.database import SessionLocal, get_db_path
-from trueroas.core.security import derive_tenant_salt
-from trueroas.core.subscriptions import Tenant
+
+from ..auth import get_current_tenant, require_admin
+from ..core.config import settings
+from ..core.database import SessionLocal, get_db_path
+from ..core.security import derive_tenant_salt
+from ..core.subscriptions import Tenant
 
 logger = logging.getLogger("trueroas.workers.csv_export")
 router = APIRouter()
@@ -233,6 +239,8 @@ async def export_detailed_audit_excel(
     db_path = get_db_path(tenant_id)
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail="Tenant database not found")
+
+    assert pd is not None
 
     with duckdb.connect(db_path, read_only=True) as con:
         decision_rows = con.execute(

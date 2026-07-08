@@ -1,5 +1,6 @@
 {
     "python.analysis.typeCheckingMode": "strict",
+    "python.analysis.extraPaths": ["src"],
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.fixAll.ruff": "explicit",
