@@ -2,7 +2,7 @@ import os
 import random
 from typing import Dict
 
-import sqlite3
+import duckdb
 
 from trueroas.core.config import settings
 from trueroas.core.inference import DecisionEngine
@@ -16,8 +16,7 @@ def sync_shopify(db_path: str) -> Dict[str, int]:
     token = settings.SHOPIFY_TOKEN
 
     # Use context manager to prevent database locks and ensure clean closures.
-    with sqlite3.connect(db_path) as con:
-        con.execute("PRAGMA journal_mode=WAL;")
+    with duckdb.connect(db_path) as con:
         rows = con.execute(
             "SELECT clean_date, normalized_spend, meta_roas FROM historical_metrics WHERE order_id LIKE 'meta_%'"
         ).fetchall()

@@ -1,7 +1,7 @@
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 
-import sqlite3
+import duckdb
 from typing import Any
 
 from fastapi import APIRouter, Header, Request
@@ -29,8 +29,7 @@ async def get_metrics(
 ) -> MetricsResponse:
     """Fetches all consolidated performance metrics from the database."""
     db_path = get_db_path(x_tenant_id)
-    with sqlite3.connect(db_path) as con:
-        con.execute("PRAGMA journal_mode=WAL;")
+    with duckdb.connect(db_path) as con:
         res = con.execute("""
             SELECT AVG(true_roas), AVG(meta_roas) 
             FROM historical_metrics 
@@ -58,8 +57,7 @@ async def get_truth_gap_chart_data(
 ) -> dict[str, Any]:
     """Returns time-series data optimized for chart rendering."""
     db_path = get_db_path(x_tenant_id)
-    with sqlite3.connect(db_path) as con:
-        con.execute("PRAGMA journal_mode=WAL;")
+    with duckdb.connect(db_path) as con:
         query = """
             WITH RECURSIVE dates(date_series) AS (
                 SELECT date('now', '-29 days')

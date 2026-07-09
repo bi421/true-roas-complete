@@ -6,7 +6,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, cast
 
-import sqlite3
+import duckdb
 import httpx
 import redis
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
@@ -21,7 +21,7 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
     """Generates realistic Meta spend data if no access token is provided.
 
     Args:
-        db_path (str): The filesystem path to the tenant's SQLite warehouse.
+        db_path (str): The filesystem path to the tenant's DuckDB warehouse.
 
     Returns:
         dict: Metadata about the synchronization run (mode, days, total_spend).
@@ -35,8 +35,7 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
     # P1 FIX: Increased timeout to 1800s (30 min) to handle large data batches without lock eviction
     try:
         with redis_client.lock(lock_key, timeout=1800, blocking_timeout=30):
-            with sqlite3.connect(db_path) as con:
-                con.execute("PRAGMA journal_mode=WAL;")
+            with duckdb.connect(db_path) as con:
                 if not token:
                     # P1 FIX: Prevent demo data from polluting production DB
                     if (
@@ -93,11 +92,14 @@ def sync_meta(db_path: str) -> Dict[str, Any]:
         # tasks.py autoretry_for will catch LockError
         raise redis.exceptions.LockError(f"Database lock timeout for {db_path}.")  # type: ignore[no-untyped-call]
     except Exception as e:
-        with sqlite3.connect(db_path) as con:
+        with duckdb.connect(db_path) as con:
             con.execute(
                 """
-                INSERT OR REPLACE INTO sync_metadata (service, last_sync_status, error_message)
-                VALUES ('meta', 'STALE', ?);
+                INSERT INTO sync_metadata (service, last_sync_status, error_message)
+                VALUES ('meta', 'STALE', ?)
+                ON CONFLICT(service) DO UPDATE SET
+                    last_sync_status = 'STALE',
+                    error_message = EXCLUDED.error_message;
                 """,
                 [str(e)],
             )
