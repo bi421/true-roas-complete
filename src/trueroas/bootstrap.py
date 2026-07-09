@@ -1,7 +1,7 @@
 #  Copyright (c) 2024-2026 TrueROAS Team.
 #  All rights reserved.
 
-import sqlite3
+import duckdb
 from typing import Dict, Any
 from trueroas.core.database import get_db_path
 
@@ -43,18 +43,16 @@ class PolicyBootstrapper:
         """
         db_path = str(get_db_path(tenant_id))
         try:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
+            with duckdb.connect(db_path) as conn:
                 query = """
                     SELECT 
                         SUM(revenue), 
                         SUM(cogs), 
                         SUM(shipping)
                     FROM orders
-                    WHERE created_at > date('now', '-90 days')
+                    WHERE created_at > (CURRENT_TIMESTAMP - INTERVAL '90 days')
                 """
-                cursor.execute(query)
-                row = cursor.fetchone()
+                row = conn.execute(query).fetchone()
 
                 if not row or row[0] is None or row[0] <= 0:
                     return 1.54
@@ -68,7 +66,7 @@ class PolicyBootstrapper:
                     return 1.54
 
                 return round(1.0 / margin, 2)
-        except (sqlite3.Error, Exception):
+        except (duckdb.Error, Exception):
             return 1.54
 
 

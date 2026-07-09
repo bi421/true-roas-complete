@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-import sqlite3
+import duckdb
 from datetime import date
 from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel, Field
@@ -80,8 +80,7 @@ async def get_metrics(
 
     db_path = get_db_path(tenant_id)
     try:
-        with sqlite3.connect(db_path) as con:
-            con.execute("PRAGMA journal_mode=WAL;")
+        with duckdb.connect(db_path) as con:
             # Fetch Accuracy Aggregates
             acc_row = con.execute("""
                 SELECT 
@@ -177,5 +176,5 @@ async def get_metrics(
             redis_client.set(cache_key, json.dumps(metrics), ex=300)
             return MetricsResponse(**metrics)
 
-    except sqlite3.Error:
+    except duckdb.Error:
         return default_metrics()
