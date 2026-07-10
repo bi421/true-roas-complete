@@ -1,99 +1,117 @@
-## TrueROAS – Zero-Knowledge ROAS Engine
+# TrueROAS – Decision Intelligence & ROAS Reconciliation Platform
 
-### The Problem
-Modern advertising platforms provide performance metrics that frequently diverge from actual financial outcomes. Traditional third-party analytics solutions address this by centralizing sensitive customer PII and order data, creating significant data liability and sovereignty risks for e-commerce brands.
+## The Problem
+Meta Ads ROAS reporting consistently diverges from verified financial outcomes. Traditional analytics tools compensate by centralizing sensitive Shopify PII and ad spend data, creating data liability and sovereignty risks for DTC brands.
 
-### Our Architecture (Local-First)
-TrueROAS utilizes a local-first, zero-knowledge architecture. All computation occurs at the edge within a restricted WebAssembly (WASM) environment. By moving the data plane to the client's local infrastructure, raw Shopify orders and Meta Ads spend data never egress from the user's environment.
+TrueROAS reconciles platform-reported ROAS against verified revenue using a local-first, zero-knowledge architecture where raw financial data never leaves the tenant's infrastructure.
 
-The server-side Control Plane performs threshold tuning in pure Python (`src/trueroas/learning/auto_tuner.py`, `AutoTuner.compute_new_threshold`), using Brier score with sample-size dampening; it does not call a WASM learning core via wasmer.
+## Current Architecture (FastAPI + PostgreSQL/DuckDB)
 
-### Phase 1: User Data Protection
-We cannot see your data. Ever. All sensitive information is stored in an encrypted vault located at `~/.trueroas/vault.db`. 
+### Control Plane (`src/trueroas/main.py`)
+- **Framework:** FastAPI 2.x with async lifespan management
+- **Port:** 10000 (configurable via `PORT` env var)
+- **Database:** PostgreSQL 15 (central: leads, ZK proofs, subscriptions) + DuckDB (tenant warehouses)
+- **Task Queue:** Celery + Redis (high/medium/low priority queues)
+- **Security:** HMAC-SHA256 proof signatures, tenant salt derivation, circuit breaker, bot defense
 
-*   **At-Rest Encryption:** The vault uses SQLCipher with AES-256-CBC.
-*   **Key Derivation:** We utilize PBKDF2-HMAC-SHA256 with 600,000 iterations. The salt is derived from the user's email, and the password is bound to a unique hardware fingerprint (CPU ID and OS version).
-*   **Memory Hygiene:** The `zeroize` crate is used to overwrite sensitive heap buffers on all execution paths, including error states, ensuring secrets do not persist in RAM.
+### Data Plane (`src/trueroas/workers/`)
+- **Celery Tasks:** `meta_sync`, `shopify_sync`, `reconcile_decisions`, backup/restore
+- **DuckDB Tenant Warehouses:** Per-tenant `warehouse.duckdb` files with `historical_metrics`, `decision_audit_trail`, `referrals_outbound`
+- **Reconciliation Logic:** 7/30/90-day windows with variable tolerance, Welford's online variance for confidence scoring
+- **Security Fixes (2026):**
+  - SQL identifier allowlist mapping in `reconcile_decisions.py` prevents injection via column-name interpolation
+  - `shutil.which()` resolves `pg_dump`/`sqlite3` paths to prevent PATH hijacking in backup tasks
+  - `APP_SECRET_SALT` fail-fast validation on startup; minimum 32 characters enforced
 
-### Phase 2: Code Self-Defense
-TrueROAS is a tamper-reactive binary. Each build is personalized and cryptographically bound to the authorized user.
+### Learning System (`src/trueroas/learning/`)
+- **Pure Python:** `AutoTuner.compute_new_threshold()` uses Brier score with sample-size dampening
+- **No WASM dependency:** The Rust/WASM learning core exists in `prod/` but is **not invoked** by the running application
+- **Policy Store:** SQLAlchemy-backed `PolicyStore` persists threshold policies with WORM audit trail
+- **Deterministic:** Bayesian bias correction is replayable from historical data for audit
 
-*   **Personalized Build:** A unique `USER_HASH` is embedded into the binary at compile time.
-*   **Integrity Kill Switch:** On startup, the engine performs a BLAKE2b-512 integrity check of its own bytecode.
-*   **Tamper Deterrent:** If tampering or a license mismatch is detected, the binary executes a self-wipe of the first 1MB of its executable.
-*   **Data Poisoning:** Unauthorized instances activate a poisoning routine that corrupts ROAS output by 50%, introducing randomized noise to prevent the use of stolen analytics.
+### API Routes
+| Prefix | Purpose |
+|--------|---------|
+| `/api/v1/proofs` | ZK proof ingestion with HMAC verification |
+| `/api/v1/metrics` | Tenant ROAS metrics + learning metadata |
+| `/api/v1/cfo/dashboard` | Business translation + trend charts |
+| `/api/v1/admin/leads` | Lead management (admin only) |
+| `/api/v1/leads` | Public lead capture |
+| `/api/v1/internal/*` | CSV/Excel export endpoints |
+| `/api/v1/export/*` | Backwards-compatible audit export aliases |
 
-### Phase 3: Serverless Referral System
-The referral system operates without a central database, preserving the sovereign nature of the application.
+### Authentication
+- JWT Bearer tokens via `HTTPBearer`
+- Tenant isolation: every request scoped to `tenant_id` from verified token
+- Admin dependencies: `require_admin` for sensitive operations
 
-*   **Identity Generation:** Each user generates an ed25519 keypair locally. The `referral_id` is derived from the base58-encoded public key.
-*   **Aggregated Proofs:** Referrals are verified via aggregated zero-knowledge proofs. No PII of invitees is transmitted; only signed cryptographic commitments are sent to Stripe metadata during the checkout process.
-*   **Dynamic Pricing:** The system calculates pricing tiers ($299 to $0) locally based on verifiable signatures stored in the vault.
+## Deployment
 
-### License & Anti-Tampering
-TrueROAS is closed-source, personal-use software.
+### Docker Compose (Production)
+```bash
+docker-compose up -d
+```
 
-**You MAY:**
-*   Use on your own Shopify stores.
-*   Build your own dashboard on top of the exported data.
+Services:
+- `api` — FastAPI app on port 8001
+- `worker` — Celery worker processing meta/shopify/reconciliation tasks
+- `db` — PostgreSQL 15 with persistent volume
+- `redis` — Redis 7 with password auth
 
-**You MAY NOT:**
-*   Copy, resell, or distribute the binary.
-*   Modify, reverse-engineer, or remove the forensic watermark.
-*   Share your personalized build.
+### Environment Variables
+```env
+POSTGRES_USER=trueroas
+POSTGRES_PASSWORD=<required>
+POSTGRES_DB=trueroas
+REDIS_PASSWORD=<required>
+APP_SECRET_SALT=<32+ char secret>
+SHOPIFY_TOKEN=<optional, enables LIVE mode>
+STRIPE_WEBHOOK_SECRET=<optional>
+```
 
-**Protection:** Each build is cryptographically bound to your email + store ID. The binary self-checks its integrity on startup (BLAKE2b). Tampering violates the license and will result in permanent ban from updates and the Founders Club. We do not use servers – the protection is built into the code itself.
+### Local Development
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn src.trueroas.main:app --reload --port 10000
+```
+
+## Security & Compliance
+
+| Control | Implementation |
+|---------|---------------|
+| **SQL Injection Prevention** | Column names resolved via hardcoded allowlist dicts; no user input reaches SQL identifiers |
+| **PATH Hijacking Prevention** | `shutil.which("pg_dump")` / `shutil.which("sqlite3")` resolves binaries before `subprocess.run` |
+| **Proof Integrity** | HMAC-SHA256 over canonical JSON; timestamp anti-replay (±300s) |
+| **Tenant Isolation** | Per-tenant DuckDB warehouse + PostgreSQL row-level tenant scoping |
+| **Secret Management** | `APP_SECRET_SALT` validated at startup; minimum 32 chars; fail-fast on misconfiguration |
+| **Bot Defense** | Request fingerprinting + circuit breaker (`AdSpendBreaker`) in `core/breaker.py` |
+
+## Testing
+
+```bash
+pytest --cov=src/trueroas
+```
+
+- **108 tests** covering API, security, learning, reconciliation, and E2E sandbox
+- `test_reconcile_decisions.py`: allowlist completeness, injection char rejection, hardcoded windows validation
+- `test_zero_knowledge.py`: ZK compliance (no PII in proof payloads)
+- `test_security.py`: tenant sanitization, path traversal, HMAC verification
+
+## Code Quality
+
+```bash
+ruff check src/trueroas --select S   # Security linting (0 production errors)
+mypy src/trueroas                    # Type checking (104 files, 0 errors)
+```
+
+## Legacy Artifacts
+
+The repository contains Rust/WASM source files (`vault.rs`, `self_defense.rs`, `referral.rs`, `lib.rs`, `api.rs`, `models.rs`) and compiled WASM binaries in `prod/` and `deploy/`. These were part of an earlier personalization/tamper-detection architecture that has been **deprecated in favor of the pure-Python FastAPI stack**. The files are retained for reference but are **not loaded or imported** by the running application.
+
+## License
+
+Proprietary. See `ACCOUNTABILITY.md` for compliance and audit details.
 
 © 2026 TrueROAS. All rights reserved.
-
-### Security Guarantees
-
-| Guarantee | Verification |
-| :--- | :--- |
-| **No Data Exfiltration** | Post-initialization, the binary lacks network syscalls in the WASI runtime. |
-| **No Telemetry** | Source audit confirms zero tracking SDK or analytic endpoint dependencies. |
-| **Hardware-Bound Encryption** | PBKDF2 key derivation binds the vault to the local hardware fingerprint. |
-| **Memory Hygiene** | Secrets implement `ZeroizeOnDrop` to overwrite heap buffers upon deallocation. |
-| **Verifiable Builds** | Personalization anchors builds to unique user salts, preventing binary sharing. |
-
-### Technical Specifications
-*   **Language:** Rust 1.75+
-*   **Target:** `wasm32-wasi`
-*   **Safety:** `#![forbid(unsafe_code)]` enforced across all modules.
-*   **Dependencies:** `rusqlite` (sqlcipher), `zeroize`, `blake2`, `ed25519-dalek`.
-*   **Binary Footprint:** < 5MB.
-
-### Installation
-TrueROAS provides automated build scripts to simplify the personalization process:
-
-*   **Windows:** Double-click `build_windows.bat`.
-*   **macOS/Linux:** Run `bash build_macos.sh` in your terminal.
-
-These scripts ensure Rust is installed, prompt for your credentials, and compile your personalized WASM binary.
-
-### Verification (How to Audit Us)
-
-**Dependency Audit**
-Verify the exclusion of network-capable dependencies and security vulnerabilities:
-```bash
-cargo audit
-```
-
-**Vault Encryption**
-Verify that the local database is encrypted and running SQLCipher:
-```bash
-sqlite3 ~/.trueroas/vault.db "PRAGMA cipher_version;"
-```
-
-**Memory Inspection**
-Search for unencrypted PII or secret strings in the compiled WASM binary:
-```bash
-strings target/wasm32-wasi/release/trueroas.wasm | grep -i "secret"
-```
-
-**Tamper Detection Test**
-Manually modify the binary to trigger the integrity protection:
-```bash
-echo "tamper" >> target/wasm32-wasi/release/trueroas.wasm
-# Execute binary to confirm self-wipe/exit
-```
