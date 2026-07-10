@@ -198,6 +198,9 @@ class DecisionEngine:
 
 
 class BayesianInput:
+    std_dev: float
+    meta_roas: float
+
     def __init__(self, **kwargs: Any) -> None:
         for k, v in kwargs.items():
             setattr(self, k, v)

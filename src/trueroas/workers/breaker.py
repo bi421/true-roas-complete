@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Security, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.trueroas.auth import require_admin
-from src.trueroas.core.breaker import AdSpendBreaker
-from src.trueroas.core.database import get_db_session
-from src.trueroas.core.subscriptions import Tenant
+from trueroas.auth import require_admin
+from trueroas.core.breaker import AdSpendBreaker
+from trueroas.core.database import get_db_session
+from trueroas.core.subscriptions import Tenant
 
 router = APIRouter(prefix="/api/v1/circuit-breaker", tags=["Circuit Breaker"])
 

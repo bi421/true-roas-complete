@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import sqlite3
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
@@ -86,7 +87,7 @@ META_API_429_TOTAL: Counter = _get_or_create_metric(
 @setup_logging.connect  # type: ignore[untyped-decorator]
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     handler = logging.StreamHandler()
-    formatter = jsonlogger.JsonFormatter(  # type: ignore[no-untyped-call]
+    formatter = jsonlogger.JsonFormatter(  # type: ignore[attr-defined]
         "%(timestamp)s %(level)s %(name)s %(message)s %(request_id)s",
         rename_fields={"asctime": "timestamp", "levelname": "level"},
     )
@@ -98,7 +99,7 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
 
 logger = logging.getLogger("trueroas.tasks")
 celery_app = Celery("trueroas", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _sanitize_task_args(
@@ -252,7 +253,7 @@ def generate_pdf_report_task(tenant_id: str, data: Dict[str, Any]) -> str:
     Returns:
         str: Path or ID of the generated PDF.
     """
-    from src.trueroas.pdf_service import pdf_service
+    from trueroas.pdf_service import pdf_service
 
     return pdf_service.generate_report(tenant_id, data)
 
@@ -267,8 +268,8 @@ def vacuum_databases() -> None:
 
     Optimizes SQLite performance and manages WAL journal sizes across all tenants.
     """
-    from src.trueroas.core.database import SessionLocal, db_layer
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.database import SessionLocal, db_layer
+    from trueroas.core.subscriptions import Tenant
 
     # Standardized to context manager to prevent pool exhaustion (SOC2 CC6.1)
     with SessionLocal() as db:
@@ -299,8 +300,8 @@ def monitor_db_sizes() -> None:
 
     Checks both DB and WAL file sizes against operational limits (500MB/100MB).
     """
-    from src.trueroas.core.database import SessionLocal, db_layer
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.database import SessionLocal, db_layer
+    from trueroas.core.subscriptions import Tenant
 
     with SessionLocal() as db:
         tenants = db.query(Tenant).all()
@@ -351,9 +352,9 @@ def reconcile_all_tenants_window(window_days: int) -> None:
     Args:
         window_days (int): The number of days to look back for reconciliation.
     """
-    from src.trueroas.core.database import SessionLocal, get_db_path
-    from src.trueroas.core.subscriptions import Tenant
-    from src.trueroas.workers.reconcile_decisions import reconcile_past_decisions
+    from trueroas.core.database import SessionLocal, get_db_path
+    from trueroas.core.subscriptions import Tenant
+    from trueroas.workers.reconcile_decisions import reconcile_past_decisions
 
     with SessionLocal() as db:
         tenants = db.query(Tenant).all()
@@ -476,9 +477,9 @@ def process_shopify_webhook_task(
     Returns:
         dict: The result of the processing (success, ignored, or failed).
     """
-    from src.trueroas.core.database import SessionLocal, db_layer, get_db_path
-    from src.trueroas.core.subscriptions import Tenant
-    from src.trueroas.workers.reconcile_decisions import reconcile_past_decisions
+    from trueroas.core.database import SessionLocal, db_layer, get_db_path
+    from trueroas.core.subscriptions import Tenant
+    from trueroas.workers.reconcile_decisions import reconcile_past_decisions
 
     # Requirement: Respect State Law (CCPA/CDPA) opt-out by checking 'do_not_track'
     # Fixed: Session leak resolved via context manager
@@ -645,7 +646,7 @@ def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str) ->
     """
     import os
 
-    from src.trueroas.core.database import db_layer
+    from trueroas.core.database import db_layer
 
     logger.info(f"GDPR HARD PURGE: Operation {operation_id} started for {id_type}")
 
@@ -678,7 +679,7 @@ def hard_purge_subject_task(operation_id: str, identifier: str, id_type: str) ->
     # 3. Finalize Erasure Log
     from sqlalchemy import text
 
-    from src.trueroas.core.database import SessionLocal
+    from trueroas.core.database import SessionLocal
 
     with SessionLocal() as db:
         db.execute(
@@ -762,7 +763,7 @@ def backup_tenant_sqlite_task(tenant_id: str) -> None:
     Args:
         tenant_id (str): Unique identifier for the tenant.
     """
-    from src.trueroas.core.database import db_layer
+    from trueroas.core.database import db_layer
 
     db_path = db_layer.get_warehouse_path(tenant_id)
     backup_path = os.path.join(tempfile.gettempdir(), f"{tenant_id}_backup.db")
@@ -823,8 +824,8 @@ def run_nightly_brt_orchestration() -> None:
     backup_postgresql_task.delay()
 
     # 2. Select 3 random tenants for validation (Requirement 6.a)
-    from src.trueroas.core.database import SessionLocal
-    from src.trueroas.core.subscriptions import Tenant
+    from trueroas.core.database import SessionLocal
+    from trueroas.core.subscriptions import Tenant
 
     with SessionLocal() as db:
         tenants = db.query(Tenant).filter(Tenant.status == "active").limit(3).all()

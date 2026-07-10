@@ -30,7 +30,7 @@ logger = logging.getLogger("trueroas.webhooks")
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 async def check_cb(service: str) -> None:
@@ -92,7 +92,7 @@ async def verify_stripe_signature(payload: bytes, sig_header: str) -> Dict[str, 
             payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
         return event  # type: ignore[no-any-return]
-    except (ValueError, stripe.error.SignatureVerificationError) as e:  # type: ignore[attr-defined]
+    except (ValueError, stripe.error.SignatureVerificationError) as e:  # type: ignore[union-attr]
         logger.error(f"Stripe signature verification failed: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
 
@@ -231,7 +231,7 @@ async def shopify_webhook(
     await update_cb("shopify", success=True)
     topics = ["orders/create", "orders/updated", "refunds/create"]
     if x_shopify_topic in topics:
-        from trueroas.workers.tasks import process_reconciled_batch
+        from trueroas.learning.auto_tuner import process_reconciled_batch
         tenant_id = x_shopify_shop_domain.replace(".myshopify.com", "")
         background_tasks.add_task(process_reconciled_batch, tenant_id)
         return {"status": "success", "message": f"Signal {x_shopify_topic} received and reconciliation queued."}

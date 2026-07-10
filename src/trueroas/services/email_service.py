@@ -1,7 +1,5 @@
 from typing import Any
 
-from trueroas.core.email_service import *  # noqa: F403
-
 
 class _EmailService:
     def send_nurture_email(

@@ -16,7 +16,7 @@ from trueroas.core.database import get_db_session
 from trueroas.core.config import settings
 
 logger = logging.getLogger("trueroas.breaker")
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 try:
     CIRCUIT_BREAKER_TRIGGERS: Counter = Counter(

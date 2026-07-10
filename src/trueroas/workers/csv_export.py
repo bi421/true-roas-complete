@@ -9,10 +9,11 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import duckdb
 
+pd: Any = None
 try:
-    import pandas as pd  # type: ignore
+    import pandas as pd  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
-    pd = None
+    pass
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse

@@ -10,6 +10,8 @@ DataQualityPreset: Any
 ColumnDriftMetric: Any
 Report: Any
 
+pd: Any
+
 try:
     import pandas as pd
     import evidently.metric_preset as _metric_preset

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from trueroas.core.config import settings
 
 
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def sanitize_tenant_id(tenant_id: str) -> str:

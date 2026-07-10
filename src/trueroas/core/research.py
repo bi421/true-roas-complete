@@ -39,7 +39,7 @@ class DecisionScienceEngine:
             }
 
     @staticmethod
-    def get_longitudinal_drift(db_path: str) -> List[Dict[str, Any]]:
+    def get_longitudinal_drift(db_path: str) -> List[Any]:
         """Compares accuracy decay across 7, 30, and 90 day intervals."""
         with duckdb.connect(db_path, read_only=True) as con:
             return con.execute("""

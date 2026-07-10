@@ -187,6 +187,7 @@ def test_full_accountability_lifecycle_automated(sandbox_tenant: Tenant) -> None
 
     db: Session = SessionLocal()
     tenant_record = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+    assert tenant_record is not None, f"Tenant {tenant_id} not found"
     hmac_key = derive_tenant_salt(tenant_record.tenant_secret_salt)
     db.close()
 

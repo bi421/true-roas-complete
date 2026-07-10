@@ -199,9 +199,9 @@ async def get_decision_report(
     data["assumptions_json"] = json.loads(data["assumptions_json"])
 
     # Convert to JSON string to support lru_cache in StrategyContentService
-    return cast(Dict[str, Any], StrategyContentService.generate_post_mortem(
+    return StrategyContentService.generate_post_mortem(  # type: ignore[no-any-return]
         json.dumps(data, sort_keys=True, default=str)
-    ))
+    )
 
 
 @router.post("/{decision_id}/approve", status_code=status.HTTP_200_OK)

@@ -3,8 +3,8 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from celery.result import AsyncResult
-from src.trueroas.workers.tasks import celery_app, generate_pdf_report_task
-from src.trueroas.auth import get_current_tenant
+from trueroas.workers.tasks import celery_app, generate_pdf_report_task
+from trueroas.auth import get_current_tenant
 from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/reports", tags=["Reports"])

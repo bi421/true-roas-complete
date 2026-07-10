@@ -453,7 +453,7 @@ async def get_metrics(
 async def get_admin_leads(
     is_admin: None = Depends(require_admin),
 ) -> list[dict[str, str]]:
-    with sqlite3.connect(CENTRAL_DB, read_only=True) as con: # DuckDB-ээс SQLite руу шилжүүлэв
+    with sqlite3.connect(CENTRAL_DB) as con:  # DuckDB-ээс SQLite руу шилжүүлэв
         leads = con.execute(
             "SELECT email, status, created_at FROM leads WHERE status = 'NEW' ORDER BY created_at DESC"
         ).fetchall()

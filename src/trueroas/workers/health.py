@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from src.trueroas.core.config import settings
+from trueroas.core.config import settings
 
 router = APIRouter(tags=["System"])
 

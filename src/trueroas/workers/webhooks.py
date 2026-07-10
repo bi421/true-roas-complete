@@ -82,7 +82,7 @@ async def verify_stripe_signature(payload: bytes, sig_header: str) -> Dict[str, 
     except ValueError as e:
         logger.error(f"Invalid Stripe payload: {e}")
         raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError as e:  # type: ignore[attr-defined]
+    except stripe.error.SignatureVerificationError as e:  # type: ignore[union-attr]
         logger.error(f"Invalid Stripe signature: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
 

@@ -1,11 +1,11 @@
 import os
 import sys
-from typing import Iterator
+from typing import Any, Iterator
 
 import pytest
 
 
-def pytest_sessionstart(session) -> None:  # pragma: no cover
+def pytest_sessionstart(session: Any) -> None:  # pragma: no cover
     """Ensure `import trueroas` works when pytest isn't run with PYTHONPATH."""
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))

@@ -72,9 +72,9 @@ class PolicyBootstrapper:
 
 if __name__ == "__main__":
     import argparse
-    from src.trueroas.core.database import SessionLocal
-    from src.trueroas.learning.policy_store import PolicyStore
-    from src.trueroas.learning.worm_proof import PolicySigner
+    from trueroas.core.database import SessionLocal
+    from trueroas.learning.policy_store import PolicyStore
+    from trueroas.learning.worm_proof import PolicySigner
 
     parser = argparse.ArgumentParser(
         description="Bootstrap TrueROAS Learning Policy for a tenant."

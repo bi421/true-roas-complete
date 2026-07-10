@@ -2,8 +2,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from src.trueroas.core.config import settings
-from src.trueroas.core.database import get_db_session
+from trueroas.core.config import settings
+from trueroas.core.database import get_db_session
 
 router = APIRouter(tags=["System"])
 

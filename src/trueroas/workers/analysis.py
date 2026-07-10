@@ -23,7 +23,7 @@ class MetricsResponse(BaseModel):
 
 
 @router.get("/metrics", response_model=MetricsResponse)
-@limiter.limit(settings.RATE_LIMIT_METRICS)  # type: ignore[untyped-decorator]
+@limiter.limit(settings.RATE_LIMIT_METRICS)  # type: ignore[misc]
 async def get_metrics(
     request: Request, x_tenant_id: str = Header("default")
 ) -> MetricsResponse:
