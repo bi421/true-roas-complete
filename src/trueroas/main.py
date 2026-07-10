@@ -30,9 +30,6 @@ from trueroas.learning.config import learning_settings
 from trueroas.core.strategy_content import StrategyContentService
 from trueroas.core.config import settings
 from trueroas.auth import get_current_tenant, require_admin
-from trueroas.sync import router as sync_router
-from trueroas.landing import router as landing_router
-from trueroas.reports import router as reports_router
 
 logger = logging.getLogger("trueroas.main")
 

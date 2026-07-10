@@ -123,7 +123,7 @@ async def get_metrics(
 
             # Уг хэсэгт DuckDB-ийн generate_series-ийг орлох Recursive CTE ашиглан
             # өгөгдөлгүй өдрүүдийг нөхөж харуулна.
-            trend_query = f"""
+            trend_query = """
                 WITH RECURSIVE dates(d) AS (
                     SELECT date(COALESCE(?, date('now', '-30 days')))
                     UNION ALL

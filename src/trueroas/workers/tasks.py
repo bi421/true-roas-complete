@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -9,7 +10,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from typing import Any, Dict, Tuple
-import duckdb
 import redis
 import stripe
 from celery import Celery
@@ -20,6 +20,9 @@ from pythonjsonlogger import jsonlogger
 
 from trueroas.core.config import settings
 from trueroas.core.email_service import send_email, render_template
+
+_PG_DUMP_PATH = shutil.which("pg_dump") or "pg_dump"
+_SQLITE3_PATH = shutil.which("sqlite3") or "sqlite3"
 
 
 def _get_or_create_metric(
@@ -704,8 +707,8 @@ def backup_postgresql_task() -> str:
 
     try:
         # a) Native pg_dump (Custom format)
-        subprocess.run(
-            ["pg_dump", "--format=custom", "--no-owner", f"--file={dump_path}"],
+        subprocess.run(  # noqa: S603 - inputs are hardcoded flags, controlled temp path, and app settings
+            [_PG_DUMP_PATH, "--format=custom", "--no-owner", f"--file={dump_path}"],
             check=True,
             env={"PGPASSWORD": settings.POSTGRES_PASSWORD or ""},
         )
@@ -779,11 +782,15 @@ def backup_tenant_sqlite_task(tenant_id: str) -> None:
                 conn.close()
 
         # a) Native Online Backup command
-        subprocess.run(["sqlite3", str(db_path), f".backup {backup_path}"], check=True)
+        subprocess.run(  # noqa: S603 - sqlite3 path resolved via shutil.which, db_path is controlled tenant path
+            [_SQLITE3_PATH, str(db_path), f".backup {backup_path}"], check=True
+        )
 
         # c) Verification: PRAGMA integrity_check
         verify_res = (
-            subprocess.check_output(["sqlite3", backup_path, "PRAGMA integrity_check;"])
+            subprocess.check_output(  # noqa: S603 - sqlite3 path resolved via shutil.which, backup_path is controlled
+                [_SQLITE3_PATH, backup_path, "PRAGMA integrity_check;"]
+            )
             .decode()
             .strip()
         )

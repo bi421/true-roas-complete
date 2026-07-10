@@ -1,9 +1,32 @@
 import duckdb
+import shutil
 from datetime import timedelta
 
 
 _VALID_SUFFIXES = frozenset(["7d", "30d", "90d"])
 _VALID_DAYS = frozenset([7, 30, 90])
+_PG_DUMP_PATH = shutil.which("pg_dump") or "pg_dump"
+_SQLITE3_PATH = shutil.which("sqlite3") or "sqlite3"
+_RECONCILED_AT_COLUMNS = {
+    "7d": "reconciled_7d_at",
+    "30d": "reconciled_30d_at",
+    "90d": "reconciled_90d_at",
+}
+_ACTUAL_ROAS_COLUMNS = {
+    "7d": "actual_roas_7d",
+    "30d": "actual_roas_30d",
+    "90d": "actual_roas_90d",
+}
+_IS_ACCURATE_COLUMNS = {
+    "7d": "is_accurate_7d",
+    "30d": "is_accurate_30d",
+    "90d": "is_accurate_90d",
+}
+_ACCURACY_RATIO_COLUMNS = {
+    "7d": "accuracy_ratio_7d",
+    "30d": "accuracy_ratio_30d",
+    "90d": "accuracy_ratio_90d",
+}
 
 
 def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None:
@@ -27,15 +50,18 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
         ]
 
         for days, suffix, tolerance in windows:
-            assert suffix in _VALID_SUFFIXES and days in _VALID_DAYS
+            if suffix not in _VALID_SUFFIXES or days not in _VALID_DAYS:
+                raise ValueError(
+                    f"Invalid reconciliation window: suffix={suffix}, days={days}"
+                )
 
+            reconciled_at_col = _RECONCILED_AT_COLUMNS[suffix]
+            interval_expr = f"INTERVAL '{days} days'"
             pending = con.execute(
-                f"""
-                SELECT decision_id, expected_roas, timestamp
-                FROM decision_audit_trail
-                WHERE reconciled_{suffix}_at IS NULL
-                  AND timestamp <= (CURRENT_TIMESTAMP - INTERVAL '{days} days')
-                """
+                "SELECT decision_id, expected_roas, timestamp "
+                "FROM decision_audit_trail "
+                "WHERE " + reconciled_at_col + " IS NULL "
+                "AND timestamp <= (CURRENT_TIMESTAMP - " + interval_expr + ")",
             ).fetchall()
 
             for d_id, expected_roas, decision_ts in pending:
@@ -59,15 +85,18 @@ def reconcile_past_decisions(db_path: str, tenant_id: str | None = None) -> None
                 is_accurate = variance < float(tolerance)
                 accuracy_ratio = actual_roas / expected_roas_safe
 
+                actual_roas_col = _ACTUAL_ROAS_COLUMNS[suffix]
+                is_accurate_col = _IS_ACCURATE_COLUMNS[suffix]
+                accuracy_ratio_col = _ACCURACY_RATIO_COLUMNS[suffix]
+                reconciled_at_col = _RECONCILED_AT_COLUMNS[suffix]
+
                 con.execute(
-                    f"""
-                    UPDATE decision_audit_trail
-                    SET actual_roas_{suffix} = ?,
-                        is_accurate_{suffix} = ?,
-                        accuracy_ratio_{suffix} = ?,
-                        reconciled_{suffix}_at = CURRENT_TIMESTAMP
-                    WHERE decision_id = ?
-                    """,
+                    "UPDATE decision_audit_trail "
+                    "SET " + actual_roas_col + " = ?, "
+                    "    " + is_accurate_col + " = ?, "
+                    "    " + accuracy_ratio_col + " = ?, "
+                    "    " + reconciled_at_col + " = CURRENT_TIMESTAMP "
+                    "WHERE decision_id = ?",
                     [actual_roas, is_accurate, accuracy_ratio, d_id],
                 )
 

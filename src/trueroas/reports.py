@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from celery.result import AsyncResult

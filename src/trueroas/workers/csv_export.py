@@ -8,22 +8,20 @@ from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import duckdb
-
-pd: Any = None
-try:
-    import pandas as pd  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    pass
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-
 
 from ..auth import get_current_tenant, require_admin
 from ..core.config import settings
 from ..core.database import SessionLocal, get_db_path
 from ..core.security import derive_tenant_salt
 from ..core.subscriptions import Tenant
+
+pd: Any = None
+try:
+    import pandas as pd  # type: ignore[import-untyped]
+except ImportError:  # pragma: no cover
+    pass
 
 logger = logging.getLogger("trueroas.workers.csv_export")
 router = APIRouter()
@@ -241,7 +239,8 @@ async def export_detailed_audit_excel(
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail="Tenant database not found")
 
-    assert pd is not None
+    if pd is None:
+        raise RuntimeError("pandas is required for Excel export but is not installed")
 
     with duckdb.connect(db_path, read_only=True) as con:
         decision_rows = con.execute(
