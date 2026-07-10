@@ -4,8 +4,8 @@ from typing import Dict
 
 import duckdb
 
-from trueroas.core.config import settings
-from trueroas.core.inference import DecisionEngine
+from ..core.config import settings
+from ..core.inference import DecisionEngine
 
 
 def sync_shopify(db_path: str) -> Dict[str, int]:
@@ -75,7 +75,7 @@ def sync_shopify(db_path: str) -> Dict[str, int]:
 
 
 if __name__ == "__main__":
-    from trueroas.core.migrations import apply_migrations
+    from ..core.migrations import apply_migrations
 
     # Calculate paths for standalone execution from project root
     current_file_path = os.path.abspath(__file__)
